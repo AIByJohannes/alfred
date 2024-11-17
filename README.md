@@ -1,0 +1,2 @@
+# alfred
+My general intelligence 
