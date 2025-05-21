@@ -1,2 +1,2 @@
-# alfred
-My general intelligence 
+# A.L.F.R.E.D.
+My personal artificial intelligence 
