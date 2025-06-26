@@ -14,10 +14,11 @@ def main():
     agent = CodeAgent(model=model, tools=[PythonInterpreterTool()])
     print("Agent created successfully.")
 
-    prompt = "What is the 10th number in the Fibonacci sequence?"
-    print(f"Running agent with prompt: '{prompt}'")
 
-    result = agent.run(prompt)
+    from core.prompts import FIBONACCI_PROMPT
+    print(f"Running agent with prompt: '{FIBONACCI_PROMPT}'")
+
+    result = agent.run(FIBONACCI_PROMPT)
 
     print("\n--- Agent's Final Answer ---")
     print(result)
