@@ -1,1 +1,4 @@
 smolagents[toolkit]
+fastapi
+uvicorn[standard]
+pydantic
