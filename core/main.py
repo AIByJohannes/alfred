@@ -14,8 +14,8 @@ async def lifespan(app: FastAPI):
     try:
         engine = LLMEngine()
     except Exception as e:
-        print(f"Failed to initialize LLM engine: {e}")
-        raise
+        print(f"Failed to initialize LLM engine: {e}. API will still start; /run endpoints will return 503 until fixed.")
+        engine = None
     yield
     # Shutdown
     engine = None
