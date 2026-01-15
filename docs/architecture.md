@@ -30,7 +30,7 @@ graph TD
     subgraph "Data & Infra Layer"
         Supabase[(Supabase<br/>Postgres + Auth)]
         Redis[(Redis<br/>Queue / Cache)]
-        Ollama[Ollama<br/>LLM Inference]
+        OpenRouter[OpenRouter<br/>LLM Gateway]
     end
 
     User -->|HTTPS| NextJS
@@ -43,7 +43,7 @@ graph TD
     SpringBoot -.->|Enqueue Job| Redis
     Redis -.->|Consume Job| FastAPI
     
-    FastAPI -->|Inference| Ollama
+    FastAPI -->|Chat Completions| OpenRouter
 ```
 
 ## 3. Components
@@ -67,7 +67,7 @@ graph TD
 
 ### 3.3 AI Service (FastAPI) - *Current Repository*
 *   **Role**: The AI/ML computational engine.
-*   **Tech**: Python 3.12+, FastAPI, `smolagents`, `LiteLLM`.
+*   **Tech**: Python 3.12+, FastAPI, OpenAI SDK (Chat Completions) via OpenRouter.
 *   **Responsibilities**:
     *   **LLM Agent Execution**: Uses `CodeAgent` to autonomously solve tasks.
     *   **Inference**: Connects to local LLMs (e.g., Qwen2 via Ollama) or remote APIs.
@@ -141,7 +141,8 @@ sequenceDiagram
 ### AI Service (Local)
 The `alfred` directory contains the AI Service.
 
-*   **Requirements**: Python 3.12, Ollama running locally.
+*   **Requirements**: Python 3.12.
 *   **Environment Variables**:
-    *   `OLLAMA_MODEL`: Target model (default: `qwen2:7b`).
+    *   `OPENROUTER_API_KEY`: OpenRouter API key.
+    *   `OPENROUTER_MODEL`: Target model (default: `openai/gpt-4o-mini`).
 *   **Run Command**: `./run_server.sh`
