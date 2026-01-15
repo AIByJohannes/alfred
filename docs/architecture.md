@@ -65,17 +65,23 @@ graph TD
     *   High-performance transaction management.
     *   Orchestrating workflows that require consistency.
 
-### 3.3 AI Service (FastAPI) - *Current Repository*
+### 3.3 AI Service (FastAPI) - *Located in `core/`*
 *   **Role**: The AI/ML computational engine.
-*   **Tech**: Python 3.12+, FastAPI, OpenAI SDK (Chat Completions) via OpenRouter.
-*   **Responsibilities**:
-    *   **LLM Agent Execution**: Uses `CodeAgent` to autonomously solve tasks.
-    *   **Inference**: Connects to local LLMs (e.g., Qwen2 via Ollama) or remote APIs.
+*   **Tech**: Python 3.12+, FastAPI, OpenAI SDK (Chat Completions) via OpenRouter, Poetry.
+*   **Planned Responsibilities**:
+    *   **LLM Agent Execution**: Will use `CodeAgent` to autonomously solve tasks.
+    *   **Inference**: Connects to LLM providers via OpenRouter API.
     *   **Task Processing**: Handling computationally intensive AI jobs.
-*   **Current Implementation Details**:
-    *   Exposes a REST API (`/run`, `/fibonacci`).
-    *   Manages a global `LLMEngine` lifecycle.
-    *   Integrates `PythonInterpreterTool` for code execution capabilities.
+*   **Current Implementation Status**:
+    *   ✅ Exposes REST API (`/run`, `/fibonacci`, `/health`).
+    *   ✅ Manages global `LLMEngine` lifecycle with FastAPI lifespan.
+    *   ✅ OpenRouter integration for multiple LLM providers.
+    *   ✅ Pydantic models for request/response validation.
+    *   ✅ Poetry-based dependency management.
+    *   🚧 JWT authentication middleware (planned).
+    *   🚧 Supabase integration (planned).
+    *   🚧 Redis queue worker for async jobs (planned).
+    *   🚧 `CodeAgent` and `PythonInterpreterTool` (planned).
 
 ### 3.4 Data & Auth (Supabase)
 *   **Role**: Unified Data and Identity Provider.
@@ -138,11 +144,79 @@ sequenceDiagram
 
 ## 6. Development Setup
 
-### AI Service (Local)
-The `alfred` directory contains the AI Service.
+### Monorepo Structure
 
-*   **Requirements**: Python 3.12.
-*   **Environment Variables**:
-    *   `OPENROUTER_API_KEY`: OpenRouter API key.
-    *   `OPENROUTER_MODEL`: Target model (default: `openai/gpt-4o-mini`).
-*   **Run Command**: `./run_server.sh`
+The Alfred project is organized as a monorepo with the following structure:
+
+```
+alfred/
+├── core/          # FastAPI AI Service (Python 3.12 + Poetry)
+├── app/           # Spring Boot Core Service (Kotlin) [Planned]
+├── frontend/      # Next.js Frontend (TypeScript) [Planned]
+├── docs/          # Architecture documentation
+└── docker-compose.yml  # Local development stack
+```
+
+### AI Service (`core/`)
+
+**Status**: ✅ Active and functional
+
+*   **Location**: `core/` directory
+*   **Requirements**:
+    *   Python 3.12+
+    *   Poetry (dependency management)
+*   **Environment Variables** (see `core/.env.example`):
+    *   `OPENROUTER_API_KEY`: OpenRouter API key (required)
+    *   `OPENROUTER_MODEL`: Target model (default: `openai/gpt-4o-mini`)
+    *   `OPENROUTER_BASE_URL`: API endpoint (default: `https://openrouter.ai/api/v1`)
+    *   `PORT`: Server port (default: `8000`)
+*   **Setup & Run**:
+    ```bash
+    cd core
+    poetry install
+    cp .env.example .env
+    # Edit .env and add your OPENROUTER_API_KEY
+    poetry run uvicorn main:app --reload
+    ```
+*   **API Documentation**: http://localhost:8000/docs
+
+### Core Service (`app/`)
+
+**Status**: 🚧 Planned - not yet implemented
+
+*   **Location**: `app/` directory
+*   **Tech Stack**: Kotlin, Spring Boot 3.x, Gradle
+*   **Planned Features**:
+    *   User management and authentication
+    *   Business logic and domain models
+    *   Integration with Supabase (PostgreSQL + Auth)
+    *   JWT token validation
+    *   API orchestration layer
+
+### Frontend (`frontend/`)
+
+**Status**: 🚧 Planned - not yet implemented
+
+*   **Location**: `frontend/` directory
+*   **Tech Stack**: Next.js 15, TypeScript, Tailwind CSS, shadcn/ui
+*   **Planned Features**:
+    *   User interface for Alfred
+    *   Supabase Auth integration
+    *   Real-time updates
+    *   Chat/task interface
+
+### Local Development with Docker Compose
+
+For running all services together (when fully implemented):
+
+```bash
+# From repository root
+docker-compose up
+```
+
+This will start:
+- AI Service (FastAPI) on port 8000
+- Core Service (Spring Boot) on port 8080 (when implemented)
+- Frontend (Next.js) on port 3000 (when implemented)
+- PostgreSQL (Supabase local) on port 54322 (when implemented)
+- Redis on port 6379 (when implemented)
