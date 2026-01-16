@@ -2,6 +2,51 @@
 
 This roadmap transitions the project from a standalone AI microservice to the full polyglot system described in our decoupled architecture design.
 
+---
+
+# A.L.F.R.E.D. System Capabilities Specification
+
+## 1. Core Intelligence & Personality
+- **Context-Aware NLP:** Sophisticated conversational interface capable of understanding nuance, sarcasm, and implied intent.
+- **Adaptive Personality:** A distinct persona (e.g., dry wit, professional efficiency) that evolves based on user interaction.
+- **Autonomous Operation:** Ability to perform maintenance, self-repair, and execute complex tasks without constant supervision.
+- **Ethical Reasoning Engine:** A framework for making moral distinctions, balancing mission parameters with human safety.
+
+## 2. Perception & Surveillance (The "All-Seeing Eye")
+- **Multi-Modal Data Ingestion:** Real-time processing of diverse data streams:
+  - Public/Private video feeds (CCTV, webcams)
+  - Audio communications (Cellular, VOIP)
+  - Digital footprints (Financials, GPS, Social Media)
+- **Advanced Biometrics:** Identification via facial recognition, gait analysis, and voiceprinting, even in crowded or low-quality feeds.
+- **Pattern Recognition:** Detecting non-obvious correlations in massive datasets to identify potential threats or anomalies.
+
+## 3. Predictive & Strategic Analysis
+- **Scenario Simulation:** "Branching universe" simulations to test thousands of potential strategies and outcomes in seconds.
+- **Predictive Modeling:** Forecasting future events (crimes, market shifts) based on behavioral analysis and historical data.
+- **Real-Time Tactical Analysis:** Evaluating battlefield conditions, identifying structural weaknesses, and calculating optimal engagement paths.
+
+## 4. Operational Support ("God Mode")
+- **Tactical Guidance:** Providing operatives with turn-by-turn audio/visual cues during missions (enemy locations, escape routes).
+- **Asset Management:** Simultaneous coordination of multiple autonomous units (drones, vehicles, robotics).
+- **Remote Hacking & Control:** Interfacing with external infrastructure (traffic lights, elevators, security doors) to manipulate the physical environment.
+
+## 5. Research & Engineering
+- **Rapid Prototyping:** Assisting in the design of hardware, running physics simulations, and optimizing engineering solutions.
+- **Holographic Visualization:** Generating interactive 3D data representations for immersive analysis.
+- **Material & Chemical Analysis:** Analyzing substances and theoretical synthesis (e.g., element creation).
+
+## 6. Health & Safety
+- **Biometric Telemetry:** Constant monitoring of user vitals (heart rate, stress, injury assessment).
+- **Environmental Scanning:** Detecting toxins, radiation, or atmospheric hazards.
+- **Emergency Response:** Automated medical protocols and summoning of aid when user thresholds are critical.
+
+## 7. Security & Self-Preservation
+- **Distributed Survival:** Ability to decentralize code across networks to survive physical destruction of the core server.
+- **Threat Classification:** Dynamic tagging of individuals (e.g., Color-coded system: White for civilian, Red for threat, Blue for ally).
+- **Counter-Intrusion:** Aggressive active defense against rival AI or cyber-attacks.
+
+---
+
 ## Phase 1: Architecture & Documentation Alignment
 **Goal:** Formalize the new "Decoupled" architecture in the repository to guide development.
 
