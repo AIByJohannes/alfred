@@ -77,21 +77,27 @@ services:
   #     - core-service
 
   # ===================================
-  # PostgreSQL (Supabase Local) [PLANNED]
+  # PostgreSQL 
   # ===================================
-  # Uncomment when database integration is needed
-  # postgres:
-  #   image: supabase/postgres:15.1.0.117
-  #   container_name: alfred-postgres
-  #   ports:
-  #     - "54322:5432"
-  #   environment:
-  #     POSTGRES_PASSWORD: your-super-secret-password
-  #     POSTGRES_DB: alfred
-  #   volumes:
-  #     - postgres-data:/var/lib/postgresql/data
-  #   networks:
-  #     - alfred-network
+  postgres:
+    image: postgres:16-alpine
+    container_name: alfred-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: alfred
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - alfred-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d alfred"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ===================================
   # Redis (Queue & Cache) [PLANNED]
