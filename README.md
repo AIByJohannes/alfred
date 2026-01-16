@@ -2,191 +2,105 @@
 
 **A**utonomous **L**earning **F**ramework for **R**esourceful **E**xecution & **D**evelopment
 
-![Next.js](https://img.shields.io/badge/-Next.js-000000?style=flat&logo=nextdotjs&logoColor=white)
+![Next.js](https://img.shields.io/badge/-Next.js%2016-000000?style=flat&logo=nextdotjs&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/-Spring%20Boot-6DB33F?style=flat&logo=springboot&logoColor=white)
-![Supabase](https://img.shields.io/badge/-Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white)
-![Redis](https://img.shields.io/badge/-Redis-DC382D?style=flat&logo=redis&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/-Spring%20Boot%204-6DB33F?style=flat&logo=springboot&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/-PostgreSQL-336791?style=flat&logo=postgresql&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python%203.12-3776AB?style=flat&logo=python&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
 
-A personal artificial intelligence platform with autonomous task execution capabilities.
+A polyglot microservices system for AI-driven task execution.
+
+## Architecture
+
+Alfred follows a **Decoupled, Frontend-Driven Architecture**:
+
+*   **Frontend (Next.js)**: The orchestrator. It connects to the Backend for management and directly to the AI Service for execution.
+*   **Backend (Spring Boot)**: The "System of Record". Handles authentication, user management, and historical data.
+*   **AI Service (FastAPI)**: The "Intelligence Engine". Runs LLM agents and writes results to the shared database.
+*   **Database (PostgreSQL)**: Shared persistence layer.
+
+See [docs/architecture.md](docs/architecture.md) for details.
 
 ## Monorepo Structure
 
-This repository contains the complete Alfred platform as a monorepo:
-
 ```
 alfred/
-├── core/          # FastAPI AI Service (Python 3.12 + OpenRouter)
-├── app/           # Spring Boot Backend (Kotlin) [Planned]
-├── frontend/      # Next.js Frontend (TypeScript) [Planned]
-└── docs/          # Architecture and documentation
+├── core/          # AI Service (FastAPI, Python 3.12)
+├── app/           # Backend Service (Spring Boot 4, Kotlin)
+├── frontend/      # UI Application (Next.js 16, TypeScript)
+├── database/      # SQL Initialization scripts
+├── docs/          # Architecture and roadmap
+└── docker-compose.yml # Infrastructure orchestration
 ```
 
 ## Services
 
-### AI Service (`core/`)
+### 1. AI Service (`core/`)
+**Status**: Active
+- **Role**: Execute AI tasks, interact with LLMs (via OpenRouter).
+- **Stack**: FastAPI, Python 3.12, Poetry.
+- **Port**: `8000`
 
-**Status**: ✅ Active
+### 2. Backend Service (`app/`)
+**Status**: Initialized
+- **Role**: Identity Provider (Auth), User Management, History Read-API.
+- **Stack**: Spring Boot 4, Kotlin, Java 21, Gradle.
+- **Port**: `8080`
 
-FastAPI microservice providing LLM-powered AI capabilities through OpenRouter.
-
-**Tech Stack**: Python 3.12, FastAPI, OpenAI SDK, OpenRouter
-
-**Quick Start**:
-```bash
-cd core
-poetry install
-cp .env.example .env
-# Add your OPENROUTER_API_KEY to .env
-poetry run uvicorn main:app --reload
-```
-
-See [core/README.md](core/README.md) for detailed documentation.
-
-### Backend Service (`app/`)
-
-**Status**: 🚧 Planned
-
-Kotlin Spring Boot microservice for user management, authentication, and API orchestration.
-
-**Tech Stack**: Kotlin, Spring Boot 3.x, PostgreSQL (Supabase), JWT
-
-See [app/README.md](app/README.md) for details.
-
-### Frontend (`frontend/`)
-
-**Status**: 🚧 Planned
-
-Next.js web application for interacting with Alfred.
-
-**Tech Stack**: Next.js 15, TypeScript, Tailwind CSS, shadcn/ui
-
-See [frontend/README.md](frontend/README.md) for details.
-
-## Architecture
-
-Alfred follows a microservices architecture with three main components:
-
-1. **AI Service (FastAPI)**: Handles LLM interactions and AI task execution
-2. **Backend (Spring Boot)**: Manages users, authentication, and coordinates services
-3. **Frontend (Next.js)**: Provides the user interface
-
-See [docs/architecture.md](docs/architecture.md) for the complete architecture documentation.
+### 3. Frontend (`frontend/`)
+**Status**: Initialized
+- **Role**: User Interface, Orchestration.
+- **Stack**: Next.js 16 (App Router), React 19, Tailwind CSS 4.
+- **Port**: `3000`
 
 ## Getting Started
 
 ### Prerequisites
+- **Docker & Docker Compose** (Recommended for infrastructure)
+- **Java 21**
+- **Node.js 20+**
+- **Python 3.12+** & **Poetry**
 
-- **Python 3.12+** (for AI service)
-- **Poetry** (Python dependency management)
-- **Node.js 20+** (for frontend, when implemented)
-- **Java 21+** (for backend, when implemented)
-- **Docker** (optional, for containerized development)
+### Quick Start
 
-### Local Development
+1.  **Start Infrastructure (Postgres)**
+    ```bash
+    docker-compose up -d
+    ```
 
-#### Option 1: Run Services Individually
+2.  **Run AI Service**
+    ```bash
+    cd core
+    poetry install
+    # Copy .env.example to .env and add API keys
+    poetry run uvicorn main:app --reload
+    ```
 
-```bash
-# AI Service
-cd core
-poetry install
-cp .env.example .env
-# Configure .env with your API keys
-poetry run uvicorn main:app --reload --port 8000
-```
+3.  **Run Backend**
+    ```bash
+    cd app
+    ./gradlew bootRun
+    ```
 
-#### Option 2: Docker Compose (Recommended)
-
-```bash
-# From repository root
-docker-compose up
-```
-
-This will start all services with proper networking and dependencies.
-
-## Environment Configuration
-
-Each service requires its own environment configuration:
-
-- **core/.env**: OpenRouter API keys and AI service settings
-- **app/.env**: Database connection, JWT secrets (when implemented)
-- **frontend/.env**: API endpoints, feature flags (when implemented)
-
-See `.env.example` files in each service directory for required variables.
-
-## API Documentation
-
-When services are running:
-
-- **AI Service**: http://localhost:8000/docs (Swagger UI)
-- **Backend API**: http://localhost:8080/swagger-ui (when implemented)
-- **Frontend**: http://localhost:3000 (when implemented)
-
-## Client Applications
-
-Alfred has companion applications for different platforms:
-
-- [Android App](https://github.com/AIByJohannes/alfred-android/)
-- [Desktop App](https://github.com/AIByJohannes/alfred-desktop)
-- [CLI](https://github.com/AIByJohannes/alfred-cli/)
+4.  **Run Frontend**
+    ```bash
+    cd frontend
+    npm install
+    npm run dev
+    ```
 
 ## Development Workflow
 
-### Project Setup
+### Communication Flow
+1.  **Auth**: Frontend -> Backend (Get JWT).
+2.  **AI Task**: Frontend -> AI Service (with JWT).
+3.  **Persistence**: AI Service -> Postgres (`jobs` table).
+4.  **History**: Frontend -> Backend -> Postgres (`jobs` table).
 
-```bash
-# Clone repository
-git clone https://github.com/AIByJohannes/alfred.git
-cd alfred
-
-# Set up AI service
-cd core
-poetry install
-cp .env.example .env
-
-# Return to root for other services
-cd ..
-```
-
-### Running Tests
-
-```bash
-# AI Service
-cd core
-poetry run pytest
-
-# Backend (when implemented)
-cd app
-./gradlew test
-
-# Frontend (when implemented)
-cd frontend
-npm test
-```
-
-### Code Quality
-
-Each service has its own linting and formatting tools:
-
-- **Python (core/)**: black, ruff, mypy
-- **Kotlin (app/)**: ktlint, detekt
-- **TypeScript (frontend/)**: ESLint, Prettier
-
-## Contributing
-
-1. Create a feature branch from `main`
-2. Make changes in the appropriate service directory
-3. Ensure tests pass and code is formatted
-4. Submit a pull request with a clear description
+### Environment Variables
+Ensure all services share the same `JWT_SECRET` for stateless authentication to work.
 
 ## License
-
-See [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For questions or support, please open an issue on GitHub.
+See [LICENSE](LICENSE) file.
