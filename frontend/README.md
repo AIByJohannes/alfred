@@ -1,51 +1,43 @@
 # Alfred Frontend (Next.js)
 
-This directory will contain the Next.js frontend application for Alfred.
+The central coordinator and UI for the Alfred platform.
 
-## Planned Technology Stack
+## Technology Stack
 
-- **Framework**: Next.js 15+ (App Router)
+- **Framework**: Next.js 15 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui
-- **State Management**: React Context / Zustand
-- **Authentication**: Supabase Auth integration
+- **API Communication**: Fetch API with Dual Clients (Spring Boot & FastAPI)
 
 ## Architecture Role
 
-According to the architecture document, this frontend will:
+As defined in `docs/architecture.md`, the frontend acts as the orchestrator:
 
-- Provide the user interface for interacting with Alfred
-- Communicate with the Spring Boot backend (`app/`)
-- Handle user authentication flows
-- Display AI-generated responses and task results
-- Manage user sessions and preferences
+1.  **Identity**: Communicates with the Spring Boot `app/` service for authentication and retrieving historical job data.
+2.  **Intelligence**: Directly calls the FastAPI `core/` service to execute AI agents.
+3.  **Security**: Manages and attaches JWT tokens to requests for both services.
 
 ## Development Setup
 
-*Coming soon - service not yet implemented*
+### 1. Environment Variables
+Create a `frontend/.env.local` file:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_AI_URL=http://localhost:8000
+```
 
-To get started with Next.js:
-
+### 2. Install Dependencies
 ```bash
-# Initialize Next.js application
-npx create-next-app@latest . --typescript --tailwind --app --no-src-dir
-
-# Install dependencies
 npm install
+```
 
-# Run development server
+### 3. Run Development Server
+```bash
 npm run dev
 ```
 
 ## Directory Structure
 
-```
-frontend/
-├── app/              # Next.js app directory (App Router)
-├── components/       # React components
-├── lib/             # Utility functions and configurations
-├── public/          # Static assets
-├── package.json
-└── README.md        # This file
-```
+- `app/`: Next.js App Router pages and layouts.
+- `lib/api/`: Dual API clients for backend and AI services.
+- `public/`: Static assets.
