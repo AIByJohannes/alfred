@@ -32,49 +32,42 @@ services:
       start_period: 10s
 
   # ===================================
-  # Core Service (Spring Boot) [PLANNED]
+  # Core Service (Spring Boot)
   # ===================================
-  # Uncomment when app/ service is implemented
-  # core-service:
-  #   build:
-  #     context: ./app
-  #     dockerfile: Dockerfile
-  #   container_name: alfred-core-service
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=dev
-  #   env_file:
-  #     - ./app/.env
-  #   depends_on:
-  #     - postgres
-  #     - redis
-  #   networks:
-  #     - alfred-network
+  core-service:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: alfred-core-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    env_file:
+      - ./app/.env
+    depends_on:
+      - postgres
+    networks:
+      - alfred-network
 
   # ===================================
-  # Frontend (Next.js) [PLANNED]
+  # Frontend (Next.js)
   # ===================================
-  # Uncomment when frontend/ is implemented
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: alfred-frontend
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - NODE_ENV=development
-  #   env_file:
-  #     - ./frontend/.env.local
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #     - /app/.next
-  #   networks:
-  #     - alfred-network
-  #   depends_on:
-  #     - core-service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: alfred-frontend
+    ports:
+      - "3000:3000"
+    # Removed NODE_ENV=development to use the production build in Dockerfile
+    # Removed volumes to avoid overwriting the standalone build
+    env_file:
+      - ./frontend/.env.local
+    networks:
+      - alfred-network
+    depends_on:
+      - core-service
 
   # ===================================
   # PostgreSQL 
