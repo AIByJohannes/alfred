@@ -79,7 +79,7 @@ Security is handled statelessly using JWTs signed with a shared `JWT_SECRET` (HS
 - **Role**: Intelligence & Execution.
 - **Responsibilities**:
     - Verifying JWTs for stateless authorization.
-    - Executing LLM agents (CodeAgent).
+    - Executing LLM agents (using `smolagents` library).
     - Writing results directly to the `jobs` table.
 
 ### 4.4 Shared Postgres 16
