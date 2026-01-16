@@ -20,18 +20,22 @@ As defined in `docs/architecture.md`, the frontend acts as the orchestrator:
 ## Development Setup
 
 ### 1. Environment Variables
+
 Create a `frontend/.env.local` file:
+
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8080
 NEXT_PUBLIC_AI_URL=http://localhost:8000
 ```
 
 ### 2. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 3. Run Development Server
+
 ```bash
 npm run dev
 ```

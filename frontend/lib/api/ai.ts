@@ -1,10 +1,10 @@
-import { fetchWithAuth } from "./client";
+import { fetchWithAuth } from './client'
 
-const AI_URL = process.env.NEXT_PUBLIC_AI_URL || "http://localhost:8000";
+const AI_URL = process.env.NEXT_PUBLIC_AI_URL || 'http://localhost:8000'
 
 export interface AIResponse {
-  result: string;
-  job_id?: string;
+  result: string
+  job_id?: string
 }
 
 export const aiClient = {
@@ -12,10 +12,10 @@ export const aiClient = {
     return fetchWithAuth(
       `${AI_URL}/v1/agent/run`,
       {
-        method: "POST",
+        method: 'POST',
         body: JSON.stringify({ prompt }),
       },
-      token
-    );
+      token,
+    )
   },
-};
+}
