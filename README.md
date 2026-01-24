@@ -2,8 +2,9 @@
 
 **A**utonomous **L**earning **F**ramework for **R**esourceful **E**xecution & **D**evelopment
 
-![Next.js](https://img.shields.io/badge/-Next.js%2016-000000?style=flat&logo=nextdotjs&logoColor=white)
+![Hugging Face](https://img.shields.io/badge/Hugging%20Face-FFD21E?style=flat&logo=huggingface&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
+![Next.js](https://img.shields.io/badge/-Next.js%2016-000000?style=flat&logo=nextdotjs&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/-Spring%20Boot%204-6DB33F?style=flat&logo=springboot&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/-PostgreSQL-336791?style=flat&logo=postgresql&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python%203.12-3776AB?style=flat&logo=python&logoColor=white)
