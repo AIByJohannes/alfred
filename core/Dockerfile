@@ -14,24 +14,22 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
-ENV POETRY_HOME=/opt/poetry
-ENV POETRY_VERSION=1.8.3
-RUN curl -sSL https://install.python-poetry.org | python3 - && \
-    cd /usr/local/bin && \
-    ln -s /opt/poetry/bin/poetry
+# Install uv
+ENV UV_HOME=/opt/uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/ && \
+    mv /root/.local/bin/uvx /usr/local/bin/
 
 # Set working directory
 WORKDIR /app
 
 # Copy dependency files
-COPY pyproject.toml ./
-
-# Configure Poetry to not create virtual env (using container isolation)
-RUN poetry config virtualenvs.create false
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies (without dev dependencies for production)
-RUN poetry install --no-root --no-dev --no-interaction --no-ansi
+# --frozen ensures the lock file is used without modification
+# --no-dev excludes development dependencies
+RUN uv sync --frozen --no-dev
 
 # ===================================
 # Stage 2: Runtime

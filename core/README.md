@@ -24,22 +24,22 @@ This service is the AI engine of Alfred, handling all LLM interactions through O
 ## Prerequisites
 
 - Python 3.12 or higher
-- Poetry (for dependency management)
+- uv (for dependency management)
 - OpenRouter API key ([Get one here](https://openrouter.ai/keys))
 
 ## Setup
 
-### 1. Install Poetry (if not already installed)
+### 1. Install uv (if not already installed)
 
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### 2. Install Dependencies
 
 ```bash
 cd core
-poetry install
+uv sync
 ```
 
 ### 3. Configure Environment
@@ -60,7 +60,7 @@ OPENROUTER_API_KEY=your_actual_api_key_here
 
 ```bash
 # Development mode with auto-reload
-poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 The service will be available at `http://localhost:8000`
@@ -120,7 +120,7 @@ core/
 │   └── __init__.py          # Prompt templates library
 ├── main.py                  # FastAPI application
 ├── models.py                # Pydantic request/response models
-├── pyproject.toml           # Poetry dependencies
+├── pyproject.toml           # Project dependencies
 ├── .env.example             # Environment template
 └── README.md                # This file
 ```
@@ -130,23 +130,23 @@ core/
 ### Run Tests
 
 ```bash
-poetry run pytest
+uv run pytest
 ```
 
 ### Code Formatting
 
 ```bash
 # Format with black
-poetry run black .
+uv run black .
 
 # Lint with ruff
-poetry run ruff check .
+uv run ruff check .
 ```
 
 ### Type Checking
 
 ```bash
-poetry run mypy .
+uv run mypy .
 ```
 
 ## Environment Variables
@@ -199,9 +199,9 @@ See `../docs/architecture.md` for the complete system architecture.
 
 When making changes:
 
-1. Ensure all tests pass: `poetry run pytest`
-2. Format code: `poetry run black .`
-3. Check types: `poetry run mypy .`
+1. Ensure all tests pass: `uv run pytest`
+2. Format code: `uv run black .`
+3. Check types: `uv run mypy .`
 4. Update this README if adding new features
 
 ## License
