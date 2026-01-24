@@ -31,7 +31,7 @@ This file provides context, guidelines, and instructions for AI agents working o
 *Status: Active*
 - **Framework**: FastAPI.
 - **Language**: Python 3.12.
-- **Dependency Manager**: Poetry.
+- **Dependency Manager**: uv.
 - **Role**: AI execution, LLM integration, Job creation (Write-Only).
 - **Tools**: `ruff` (linting), `black` (formatting), `pytest` (testing).
 
@@ -62,8 +62,8 @@ This file provides context, guidelines, and instructions for AI agents working o
 2.  **AI Service (`core/`)**:
     ```bash
     cd core
-    poetry install
-    poetry run uvicorn main:app --reload
+    uv sync
+    uv run uvicorn main:app --reload
     ```
 3.  **Backend (`app/`)**:
     ```bash
@@ -78,7 +78,7 @@ This file provides context, guidelines, and instructions for AI agents working o
     ```
 
 ### Testing
-- **AI Service**: `cd core && poetry run pytest`
+- **AI Service**: `cd core && uv run pytest`
 - **Backend**: `cd app && ./gradlew test`
 - **Frontend**: `cd frontend && npm run test`
 

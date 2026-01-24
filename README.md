@@ -41,7 +41,7 @@ alfred/
 ### 1. AI Service (`core/`)
 **Status**: Active
 - **Role**: Execute AI tasks, interact with LLMs (via OpenRouter).
-- **Stack**: FastAPI, Python 3.12, Poetry.
+- **Stack**: FastAPI, Python 3.12, uv.
 - **Port**: `8000`
 
 ### 2. Backend Service (`app/`)
@@ -62,7 +62,7 @@ alfred/
 - **Docker & Docker Compose** (Recommended for infrastructure)
 - **Java 21**
 - **Node.js 20+**
-- **Python 3.12+** & **Poetry**
+- **Python 3.12+** & **uv**
 
 ### Quick Start
 
@@ -74,9 +74,9 @@ alfred/
 2.  **Run AI Service**
     ```bash
     cd core
-    poetry install
+    uv sync
     # Copy .env.example to .env and add API keys
-    poetry run uvicorn main:app --reload
+    uv run uvicorn main:app --reload
     ```
 
 3.  **Run Backend**
