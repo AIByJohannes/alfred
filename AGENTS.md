@@ -14,15 +14,15 @@ This file provides context, guidelines, and instructions for AI agents working o
 - **`docs/`**: Architecture and roadmap documentation.
 
 ### `frontend/` (Next.js App)
-*Status: To be initialized*
-- **Framework**: Next.js 15 (App Router).
+*Status: Active*
+- **Framework**: Next.js 16 (App Router).
 - **Language**: TypeScript.
-- **Styling**: Tailwind CSS.
+- **Styling**: Tailwind CSS 4.
 - **Role**: UI, Auth flow handling, and orchestration of service calls.
 
 ### `app/` (Backend Service)
-*Status: To be initialized*
-- **Framework**: Spring Boot 3.x.
+*Status: Active*
+- **Framework**: Spring Boot 4.x.
 - **Language**: Kotlin.
 - **Role**: Identity Provider (Auth), User Management, Job History (Read-Only).
 - **Database Access**: JPA / Hibernate.
@@ -65,12 +65,12 @@ This file provides context, guidelines, and instructions for AI agents working o
     poetry install
     poetry run uvicorn main:app --reload
     ```
-3.  **Backend (`app/`)**: (Once initialized)
+3.  **Backend (`app/`)**:
     ```bash
     cd app
     ./gradlew bootRun
     ```
-4.  **Frontend (`frontend/`)**: (Once initialized)
+4.  **Frontend (`frontend/`)**:
     ```bash
     cd frontend
     npm install
@@ -79,8 +79,8 @@ This file provides context, guidelines, and instructions for AI agents working o
 
 ### Testing
 - **AI Service**: `cd core && poetry run pytest`
-- **Backend**: `cd app && ./gradlew test` (Expected)
-- **Frontend**: `cd frontend && npm run test` (Expected)
+- **Backend**: `cd app && ./gradlew test`
+- **Frontend**: `cd frontend && npm run test`
 
 ### Linting & Formatting
 - **Python**: `ruff check .` and `black .`

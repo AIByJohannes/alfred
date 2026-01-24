@@ -45,13 +45,13 @@ alfred/
 - **Port**: `8000`
 
 ### 2. Backend Service (`app/`)
-**Status**: Initialized
+**Status**: Active
 - **Role**: Identity Provider (Auth), User Management, History Read-API.
 - **Stack**: Spring Boot 4, Kotlin, Java 21, Gradle.
 - **Port**: `8080`
 
 ### 3. Frontend (`frontend/`)
-**Status**: Initialized
+**Status**: Active
 - **Role**: User Interface, Orchestration.
 - **Stack**: Next.js 16 (App Router), React 19, Tailwind CSS 4.
 - **Port**: `3000`
