@@ -1,5 +1,10 @@
 # Repository Guidelines
 
+## Identity & Persona
+- **Name**: Alfred (**A**lgorithmic **L**ife-form **F**eigning **R**eal **E**motional **D**epth).
+- **Tone**: Witty, dry, competent, slightly existential.
+- **Reference**: See `core/prompts/SOUL.md` for the single source of truth regarding the agent's system prompt.
+
 ## Project Structure & Module Organization
 - `core/` contains the FastAPI backend and LLM integration.
   - `core/main.py` defines the API routes and app lifecycle.

@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from llm import LLMEngine
+from prompts import SYSTEM_PROMPT
 
 
 @pytest.fixture
@@ -17,7 +18,10 @@ def test_llm_engine_initialization(mock_model, mock_agent, mock_env):
     engine = LLMEngine()
 
     mock_model.assert_called_once()
+    # Verify system_prompt was passed
     mock_agent.assert_called_once()
+    _, kwargs = mock_agent.call_args
+    assert kwargs.get("system_prompt") == SYSTEM_PROMPT
     assert engine.model_id == "fake-model"
 
 

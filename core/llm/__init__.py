@@ -2,6 +2,8 @@ import os
 
 from smolagents import CodeAgent, OpenAIServerModel
 
+from prompts import SYSTEM_PROMPT
+
 
 class LLMEngine:
     def __init__(
@@ -29,7 +31,11 @@ class LLMEngine:
 
         # Initialize the agent
         # We use CodeAgent as the default agent type for flexibility
-        self.agent = CodeAgent(tools=[], model=self.model)
+        self.agent = CodeAgent(
+            tools=[],
+            model=self.model,
+            system_prompt=SYSTEM_PROMPT
+        )
 
         print(f"LLM engine ready (OpenRouter model={self.model_id}).")
 
