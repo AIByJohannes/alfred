@@ -51,15 +51,15 @@ This roadmap transitions the project from a standalone AI microservice to the fu
 **Goal:** Formalize the new "Decoupled" architecture in the repository to guide development.
 
 1. **Update Architecture Docs**
-   - **Action:** Replace the contents of `docs/architecture.md` with the content from the **Decoupled Alfred Architecture** document.
-   - **Key Changes:**
+   - [x] **Action:** Replace the contents of `docs/architecture.md` with the content from the **Decoupled Alfred Architecture** document.
+   - [x] **Key Changes:**
      - Remove the "Redis Queue" dependency for synchronous chat flows.
      - Clarify the **Next.js -> FastAPI** direct connection for AI execution.
      - Define the "Shared Database, No Direct Link" rule between Backend and AI services.
 
 2. **Define Shared Data Schema**
-   - **Action:** Create a SQL schema file (e.g., `docs/schema.sql`) defining the shared tables.
-   - **Tables:**
+   - [ ] **Action:** Create a SQL schema file (e.g., `docs/schema.sql`) defining the shared tables.
+   - [x] **Tables:** (Implemented in `app` entities)
      - `users`: Managed by Spring Boot (Auth info, Preferences).
      - `jobs`: Written by FastAPI (AI results), Read by Spring Boot (History).
 
@@ -69,9 +69,9 @@ This roadmap transitions the project from a standalone AI microservice to the fu
 **Goal:** Establish specific shared resources required for the services to coexist.
 
 1. **Update Docker Compose** (`docker-compose.yml`)
-   - **Action:** Add the `postgres` service (Version 16-alpine as requested).
-   - **Action:** Define a shared network `alfred-network` (ensure all services join it).
-   - **Configuration:**
+   - [x] **Action:** Add the `postgres` service (Version 16-alpine as requested).
+   - [x] **Action:** Define a shared network `alfred-network` (ensure all services join it).
+   - [x] **Configuration:**
      ```yaml
      services:
        postgres:
@@ -83,8 +83,8 @@ This roadmap transitions the project from a standalone AI microservice to the fu
      ```
 
 2. **Security Configuration (Shared Secrets)**
-   - **Action:** Create a centralized `.env` strategy or documentation ensuring `JWT_SECRET` is identical for both Spring Boot and FastAPI.
-   - **Constraint:** Both services must use **HS256** algorithm to verify signatures statelessly.
+   - [x] **Action:** Create a centralized `.env` strategy or documentation ensuring `JWT_SECRET` is identical for both Spring Boot and FastAPI.
+   - [ ] **Constraint:** Both services must use **HS256** algorithm to verify signatures statelessly. (Pending AI Service implementation)
 
 ---
 
@@ -93,16 +93,16 @@ This roadmap transitions the project from a standalone AI microservice to the fu
 *Ref: `app/README.md` & Decoupled Doc Section 3.2*
 
 1. **Initialize Project (`app/`)**
-   - **Stack:** Kotlin, Spring Boot 3.x, Spring Security, Spring Data JPA.
-   - **Action:** Scaffold project structure in `app/`.
+   - [x] **Stack:** Kotlin, Spring Boot 3.x (labeled 4.0.1), Spring Security, Spring Data JPA.
+   - [x] **Action:** Scaffold project structure in `app/`.
 
 2. **Implement Authentication (`/auth/login`)**
-   - **Logic:** Verify credentials against `users` table, issue JWT signed with the shared secret.
-   - **Output:** HTTP-Only Cookie or Bearer Token for Next.js.
+   - [x] **Logic:** Verify credentials against `users` table, issue JWT signed with the shared secret.
+   - [x] **Output:** HTTP-Only Cookie or Bearer Token for Next.js.
 
 3. **Implement Job History (`/api/jobs/history`)**
-   - **Logic:** Read-only access to the `jobs` table.
-   - **Constraint:** Spring Boot must **not** know how to execute AI jobs, only read their results.
+   - [x] **Logic:** Read-only access to the `jobs` table.
+   - [x] **Constraint:** Spring Boot must **not** know how to execute AI jobs, only read their results.
 
 ---
 
@@ -111,17 +111,17 @@ This roadmap transitions the project from a standalone AI microservice to the fu
 *Ref: `core/README.md` & Decoupled Doc Section 3.3*
 
 1. **Add Database Layer**
-   - **Action:** Add `sqlalchemy` or `asyncpg` to `core/pyproject.toml`.
-   - **Logic:** On successful AI generation, INSERT result into the shared Postgres `jobs` table.
+   - [ ] **Action:** Add `sqlalchemy` or `asyncpg` to `core/pyproject.toml`.
+   - [ ] **Logic:** On successful AI generation, INSERT result into the shared Postgres `jobs` table.
 
 2. **Implement Stateless Security**
-   - **Action:** Add a FastAPI Dependency to verify `Authorization: Bearer <JWT>`.
-   - **Logic:** Decode JWT using the shared `JWT_SECRET`. **Do not** call Spring Boot to validate; verify signature locally.
+   - [ ] **Action:** Add a FastAPI Dependency to verify `Authorization: Bearer <JWT>`.
+   - [ ] **Logic:** Decode JWT using the shared `JWT_SECRET`. **Do not** call Spring Boot to validate; verify signature locally.
 
 3. **Update API Endpoints**
-   - **Current:** `POST /run` (simple)
-   - **New:** `POST /v1/agent/run` (authenticated).
-   - **Flow:** Receive Request -> Verify JWT -> Call OpenRouter/LLM -> Write to DB -> Return JSON.
+   - [ ] **Current:** `POST /run` (simple)
+   - [ ] **New:** `POST /v1/agent/run` (authenticated).
+   - [ ] **Flow:** Receive Request -> Verify JWT -> Call OpenRouter/LLM -> Write to DB -> Return JSON.
 
 ---
 
@@ -130,27 +130,27 @@ This roadmap transitions the project from a standalone AI microservice to the fu
 *Ref: `frontend/README.md` & Decoupled Doc Section 3.1*
 
 1. **Initialize Project (`frontend/`)**
-   - **Stack:** Next.js 15, TypeScript, Tailwind.
+   - [x] **Stack:** Next.js 15, TypeScript, Tailwind.
 
 2. **Implement Dual API Clients**
-   - **Client A (Management):** Targets Spring Boot (`NEXT_PUBLIC_API_URL`) for Auth/History.
-   - **Client B (Intelligence):** Targets FastAPI (`NEXT_PUBLIC_AI_URL`) for Execution.
+   - [x] **Client A (Management):** Targets Spring Boot (`NEXT_PUBLIC_API_URL`) for Auth/History.
+   - [x] **Client B (Intelligence):** Targets FastAPI (`NEXT_PUBLIC_AI_URL`) for Execution.
 
 3. **Orchestration Logic**
-   - **Auth:** Login via Client A, store JWT.
-   - **Execution:** User types prompt -> Next.js calls Client B (FastAPI) with JWT -> Renders result.
-   - **History:** User visits "Past Tasks" -> Next.js calls Client A (Spring) -> Renders list.
+   - [x] **Auth:** Login via Client A, store JWT.
+   - [x] **Execution:** User types prompt -> Next.js calls Client B (FastAPI) with JWT -> Renders result.
+   - [x] **History:** User visits "Past Tasks" -> Next.js calls Client A (Spring) -> Renders list.
 
 ---
 
 ## Phase 6: Integration & Polish
 
 1. **Environment Variables Audit**
-   - Ensure `core/.env`, `app/.env`, and `frontend/.env.local` are documented in `README.md`.
-   - Key check: `JWT_SECRET` consistency.
+   - [ ] Ensure `core/.env`, `app/.env`, and `frontend/.env.local` are documented in `README.md`.
+   - [ ] Key check: `JWT_SECRET` consistency.
 
 2. **Migration Testing**
-   - Verify that a job created by Python (FastAPI) is immediately visible in the History list served by Kotlin (Spring Boot).
+   - [ ] Verify that a job created by Python (FastAPI) is immediately visible in the History list served by Kotlin (Spring Boot).
 
 ---
 

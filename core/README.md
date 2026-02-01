@@ -190,10 +190,17 @@ docker-compose up ai-service
 This service is part of the Alfred monorepo architecture:
 
 - **core/** (this service): FastAPI AI microservice
-- **app/**: Kotlin Spring Boot backend (planned)
-- **frontend/**: Next.js frontend (planned)
+- **app/**: Kotlin Spring Boot backend
+- **frontend/**: Next.js frontend
 
 See `../docs/architecture.md` for the complete system architecture.
+
+## Current Status
+
+The service currently implements the basic LLM execution layer.
+Pending implementation (see `../docs/roadmap.md`):
+- [ ] Database integration (writing results to Postgres)
+- [ ] Stateless Security (JWT verification)
 
 ## Contributing
 
