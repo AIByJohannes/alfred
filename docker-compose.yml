@@ -60,8 +60,6 @@ services:
     container_name: alfred-frontend
     ports:
       - "3000:3000"
-    # Removed NODE_ENV=development to use the production build in Dockerfile
-    # Removed volumes to avoid overwriting the standalone build
     env_file:
       - ./frontend/.env.local
     networks:
@@ -70,7 +68,7 @@ services:
       - core-service
 
   # ===================================
-  # PostgreSQL 
+  # PostgreSQL
   # ===================================
   postgres:
     image: postgres:16-alpine
@@ -93,19 +91,30 @@ services:
       retries: 5
 
   # ===================================
-  # Redis (Queue & Cache) [PLANNED]
+  # Alfred CLI Worker (long-lived)
   # ===================================
-  # Uncomment when async job processing is implemented
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: alfred-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis-data:/data
-  #   networks:
-  #     - alfred-network
-  #   command: redis-server --appendonly yes
+  # Polls Postgres for queued jobs and executes them
+  # against locally mounted repos.
+  # Scale up: docker compose up --scale alfred-worker=N
+  alfred-worker:
+    build:
+      context: ../alfred-cli
+      dockerfile: Dockerfile
+    command: alfred worker
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/alfred
+      - POLL_INTERVAL_MS=2000
+      - HEARTBEAT_INTERVAL_MS=15000
+      - LEASE_DURATION_SECS=60
+    volumes:
+      # Mount your local repos read-write so the worker can edit files
+      - ${REPOS_PATH:-/repos}:/repos:rw
+    networks:
+      - alfred-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
 networks:
   alfred-network:
@@ -113,4 +122,3 @@ networks:
 
 volumes:
   postgres-data:
-  redis-data:
