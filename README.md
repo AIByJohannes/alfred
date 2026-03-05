@@ -15,11 +15,11 @@ A polyglot microservices system for AI automation and entertainment.
 
 ## Architecture
 
-Alfred follows a **Decoupled, Frontend-Driven Architecture**:
+Alfred follows a **Decoupled, Frontend-Driven Service Oriented Architecture**:
 
 *   **Frontend (Next.js)**: The orchestrator. It connects to the Backend for management and directly to the AI Service for execution.
 *   **Backend (Spring Boot)**: The "System of Record". Handles authentication, user management, and historical data.
-*   **AI Service (FastAPI)**: The "Intelligence Engine". Runs LLM agents and writes results to the shared database.
+*   **Core AI Service (FastAPI)**: The "Intelligence Engine". Runs core LLM agents as well as other ML models and writes results to the shared database.
 *   **Database (PostgreSQL)**: Shared persistence layer.
 
 See [docs/architecture.md](docs/architecture.md) for details.
@@ -38,13 +38,13 @@ alfred/
 
 ## Services
 
-### 1. AI Service (`core/`)
+### 1. Core AI Service (`core/`)
 **Status**: Active
 - **Role**: Execute AI tasks, interact with LLMs (via OpenRouter).
 - **Stack**: FastAPI, Python 3.12, uv.
 - **Port**: `8000`
 
-### 2. Backend Service (`app/`)
+### 2. Application Backend Service (`app/`)
 **Status**: Active
 - **Role**: Identity Provider (Auth), User Management, History Read-API.
 - **Stack**: Spring Boot 4, Kotlin, Java 21, Gradle.
