@@ -11,7 +11,7 @@
 ![Kotlin](https://img.shields.io/badge/-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
 
-A polyglot microservices system for AI-driven task execution.
+A polyglot microservices system for AI automation and entertainment.
 
 ## Architecture
 
