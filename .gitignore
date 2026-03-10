@@ -198,8 +198,8 @@ docker-compose.override.yml
 Thumbs.db
 
 # Service-specific environment files
-core/.env
-core/.env.local
+.alfred-runtime/
+.env.local
 app/.env
 app/.env.local
 frontend/.env
