@@ -2,106 +2,90 @@
 
 **A**lgorithmic **L**ife-form **F**eigning **R**eal **E**motional **D**epth
 
-![Hugging Face](https://img.shields.io/badge/Hugging%20Face-FFD21E?style=flat&logo=huggingface&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/-Spring%20Boot%204-6DB33F?style=flat&logo=springboot&logoColor=white)
-![Next.js](https://img.shields.io/badge/-Next.js%2016-000000?style=flat&logo=nextdotjs&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/-PostgreSQL-336791?style=flat&logo=postgresql&logoColor=white)
+![React](https://img.shields.io/badge/-React-61DAFB?style=flat&logo=react&logoColor=000000)
+![Vite](https://img.shields.io/badge/-Vite-646CFF?style=flat&logo=vite&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python%203.12-3776AB?style=flat&logo=python&logoColor=white)
-![Kotlin](https://img.shields.io/badge/-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white)
-![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
+![Rust](https://img.shields.io/badge/-Alfred%20CLI-000000?style=flat&logo=rust&logoColor=white)
 
-A polyglot microservices system for AI automation and entertainment.
+Alfred is now a local-first Python orchestration repo. It provides a thin FastAPI bridge, a small React + Vite workbench, and Python wrapper scripts around the Rust `alfred` binary in `../alfred-cli`.
 
-## Architecture
+## Layout
 
-Alfred follows a **Decoupled, Frontend-Driven Service Oriented Architecture**:
-
-*   **Frontend (Next.js)**: The orchestrator. It connects to the Backend for management and directly to the AI Service for execution.
-*   **Backend (Spring Boot)**: The "System of Record". Handles authentication, user management, and historical data.
-*   **Core AI Service (FastAPI)**: The "Intelligence Engine". Runs core LLM agents as well as other ML models and writes results to the shared database.
-*   **Database (PostgreSQL)**: Shared persistence layer.
-
-See [docs/architecture.md](docs/architecture.md) for details.
-
-## Monorepo Structure
-
-```
+```text
 alfred/
-├── core/          # AI Service (FastAPI, Python 3.12)
-├── app/           # Backend Service (Spring Boot 4, Kotlin)
-├── frontend/      # UI Application (Next.js 16, TypeScript)
-├── database/      # SQL Initialization scripts
-├── docs/          # Architecture and roadmap
-└── docker-compose.yml # Infrastructure orchestration
+├── frontend/     # React + Vite workbench
+├── llm/          # Python-side inference wrapper
+├── prompts/      # Canonical system prompts
+├── scripts/      # Python wrappers for inference, fs-agent, research
+├── tests/        # Backend tests
+├── main.py       # FastAPI bridge for the local workbench
+├── models.py     # API request/response models
+└── pyproject.toml
 ```
 
-## Services
+## Runtime Model
 
-### 1. Core AI Service (`core/`)
-**Status**: Active
-- **Role**: Execute AI tasks, interact with LLMs (via OpenRouter).
-- **Stack**: FastAPI, Python 3.12, uv.
-- **Port**: `8000`
+- Python handles local orchestration, inference calls, web-grounded helper scripts, and filesystem session state.
+- The Rust `alfred` binary handles filesystem-capable agent execution.
+- FastAPI exists only as a local bridge for the frontend.
+- Runtime state is stored under `.alfred-runtime/`.
+- Database support is optional and not part of the default path.
 
-### 2. Application Backend Service (`app/`)
-**Status**: Active
-- **Role**: Identity Provider (Auth), User Management, History Read-API.
-- **Stack**: Spring Boot 4, Kotlin, Java 21, Gradle.
-- **Port**: `8080`
+## Requirements
 
-### 3. Frontend (`frontend/`)
-**Status**: Active
-- **Role**: User Interface, Orchestration.
-- **Stack**: Next.js 16 (App Router), React 19, Tailwind CSS 4.
-- **Port**: `3000`
+- Python 3.12+
+- `uv`
+- Node.js 20+
+- A built or installed `alfred` binary from `../alfred-cli`
+- `OPENROUTER_API_KEY` for Python-side inference
 
-## Getting Started
+## Backend Setup
 
-### Prerequisites
-- **Docker & Docker Compose** (Recommended for infrastructure)
-- **Java 21**
-- **Node.js 20+**
-- **Python 3.12+** & **uv**
+```bash
+uv sync
+uv run uvicorn main:app --reload
+```
 
-### Quick Start
+The API runs on `http://127.0.0.1:8000`.
 
-1.  **Start Infrastructure (Postgres)**
-    ```bash
-    docker-compose up -d
-    ```
+### FastAPI Endpoints
 
-2.  **Run AI Service**
-    ```bash
-    cd core
-    uv sync
-    # Copy .env.example to .env and add API keys
-    uv run uvicorn main:app --reload
-    ```
+- `GET /health`
+- `POST /api/infer/stream`
+- `POST /api/fs-agent/stream`
 
-3.  **Run Backend**
-    ```bash
-    cd app
-    ./gradlew bootRun
-    ```
+Both POST routes return SSE streams with event types `meta`, `delta`, `artifact`, `done`, and `error`.
 
-4.  **Run Frontend**
-    ```bash
-    cd frontend
-    npm install
-    npm run dev
-    ```
+## Frontend Setup
 
-## Development Workflow
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-### Communication Flow
-1.  **Auth**: Frontend -> Backend (Get JWT).
-2.  **AI Task**: Frontend -> AI Service (with JWT).
-3.  **Persistence**: AI Service -> Postgres (`jobs` table).
-4.  **History**: Frontend -> Backend -> Postgres (`jobs` table).
+The Vite workbench runs on `http://127.0.0.1:5173`.
 
-### Environment Variables
-Ensure all services share the same `JWT_SECRET` for stateless authentication to work.
+## CLI Wrapper Scripts
 
-## License
-See [LICENSE](LICENSE) file.
+```bash
+python -m scripts.infer "Summarize this repo"
+python -m scripts.fs_agent "Refactor the logging layer" --cwd /path/to/repo
+python -m scripts.research "ACP protocol Python examples"
+```
+
+## Environment
+
+See [`.env.example`](.env.example) for backend settings. The most important variables are:
+
+- `OPENROUTER_API_KEY`
+- `ALFRED_CLI_BIN`
+- `ALFRED_RUNTIME_ROOT`
+- `ALFRED_AGENT_MODE`
+
+## Notes
+
+- `prompts/SOUL.md` is the canonical system prompt source.
+- `scripts/fs_agent.py` assumes a future non-interactive `alfred run` contract in `../alfred-cli`.
+- The old Spring Boot, Next.js, and Postgres microservice setup has been retired from this repo.
