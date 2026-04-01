@@ -28,6 +28,7 @@ alfred/
 
 - Python handles local orchestration, inference calls, web-grounded helper scripts, and filesystem session state.
 - The Rust `alfred` binary handles filesystem-capable agent execution.
+- Filesystem-agent calls now support a `backend` selector (`auto`, `alfred-cli`, `smolagents`); the default `auto` prefers `alfred-cli` and falls back to `smolagents` when the binary is unavailable.
 - FastAPI exists only as a local bridge for the frontend.
 - Runtime state is stored under `.alfred-runtime/`.
 - Database support is optional and not part of the default path.
@@ -88,4 +89,5 @@ See [`.env.example`](.env.example) for backend settings. The most important vari
 
 - `prompts/SOUL.md` is the canonical system prompt source.
 - `scripts/fs_agent.py` assumes a future non-interactive `alfred run` contract in `../alfred-cli`.
+- The health endpoint now reports both the available backends and the resolved default backend so the UI can show which one actually ran.
 - The old Spring Boot, Next.js, and Postgres microservice setup has been retired from this repo.

@@ -47,6 +47,7 @@ graph TD
 - Runs quick research helpers via Python
 - Invokes `alfred run` for filesystem-capable work
 - Normalizes outputs into `meta`, `delta`, `artifact`, `done`, and `error` events
+- Determines the filesystem-agent backend (`alfred-cli` or `smolagents`) per request, defaulting to the CLI but falling back to `smolagents` when the binary is missing and including the chosen backend in the metadata stream.
 
 ### Rust CLI dependency
 

@@ -16,6 +16,10 @@ def test_health_reports_runtime(monkeypatch):
     assert body["status"] == "healthy"
     assert body["runtime_root"].endswith(".alfred-runtime")
     assert body["prompt_source"] == "prompts/SOUL.md"
+    assert body["smolagents_available"] is True
+    assert body["fs_agent_backend_options"] == ["auto", "alfred-cli", "smolagents"]
+    expected_default = "alfred-cli" if body["alfred_cli_available"] else "smolagents"
+    assert body["fs_agent_default_backend"] == expected_default
 
 
 def test_root_endpoint_includes_prompt_metadata():

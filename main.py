@@ -6,7 +6,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from models import FilesystemAgentRequest, HealthResponse, StreamRequest
+from models import (
+    FS_AGENT_BACKEND_ALFRED,
+    FS_AGENT_BACKEND_SMOL,
+    FilesystemAgentRequest,
+    HealthResponse,
+    StreamRequest,
+)
 from prompts import SYSTEM_PROMPT
 from scripts.common import (
     format_sse_event,
@@ -55,6 +61,8 @@ async def health_check() -> HealthResponse:
         prompt_source="prompts/SOUL.md",
         alfred_cli_available=binary is not None,
         alfred_cli_path=str(binary) if binary else None,
+        smolagents_available=True,
+        fs_agent_default_backend=FS_AGENT_BACKEND_ALFRED if binary else FS_AGENT_BACKEND_SMOL,
     )
 
 
@@ -81,6 +89,7 @@ async def filesystem_agent_stream(
             request.prompt,
             cwd=request.cwd,
             session_id=request.session_id,
+            backend=request.backend,
         )
     )
 

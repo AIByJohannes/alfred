@@ -15,6 +15,15 @@ from uuid import uuid4
 DEFAULT_RUNTIME_ROOT = ".alfred-runtime"
 DEFAULT_AGENT_MODE = "fs-agent"
 
+from llm import LLMEngine  # noqa: E402
+
+from models import (
+    FS_AGENT_BACKEND_ALFRED,
+    FS_AGENT_BACKEND_AUTO,
+    FS_AGENT_BACKEND_SMOL,
+    FsAgentBackend,
+)
+
 
 def get_repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
@@ -121,24 +130,40 @@ def build_alfred_run_command(prompt: str, cwd: str | None = None) -> list[str]:
     return command
 
 
+def select_fs_agent_backend(requested: FsAgentBackend) -> tuple[str, Path | None]:
+    binary = resolve_alfred_binary()
+    if requested in (FS_AGENT_BACKEND_AUTO, FS_AGENT_BACKEND_ALFRED):
+        if binary:
+            return FS_AGENT_BACKEND_ALFRED, binary
+        if requested == FS_AGENT_BACKEND_ALFRED:
+            # maintain the same error text to keep the CLI contract consistent
+            raise FileNotFoundError(
+                "No scriptable `alfred` binary found. Set ALFRED_CLI_BIN or build ../alfred-cli."
+            )
+    return FS_AGENT_BACKEND_SMOL, None
+
+
 async def relay_subprocess(
     command: list[str],
     *,
     session_dir: Path,
     request_payload: dict[str, Any],
     cwd: str | None = None,
+    meta_extra: dict[str, Any] | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     request_path = session_dir / "request.json"
     events_path = session_dir / "events.ndjson"
     result_path = session_dir / "result.json"
     write_json(request_path, request_payload)
 
-    yield event(
+    meta_payload = event(
         "meta",
         session_id=session_dir.name,
         command=shlex.join(command),
         cwd=cwd or str(get_repo_root()),
+        **(meta_extra or {}),
     )
+    yield meta_payload
 
     process = await asyncio.create_subprocess_exec(
         *command,
@@ -226,3 +251,36 @@ def build_arg_parser(name: str, description: str, include_cwd: bool = False) -> 
     if include_cwd:
         parser.add_argument("--cwd", dest="cwd")
     return parser
+
+
+async def stream_llm_prompt(
+    prompt: str,
+    *,
+    session_id: str | None = None,
+    request_payload: dict[str, Any] | None = None,
+    mode: str = "inference",
+    meta_extra: dict[str, Any] | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    session_id, session_dir = ensure_session(session_id)
+    events_path = session_dir / "events.ndjson"
+    payload = dict(request_payload or {})
+    payload.setdefault("type", mode)
+    payload["prompt"] = prompt
+    payload["session_id"] = session_id
+    write_json(session_dir / "request.json", payload)
+
+    meta_payload = event("meta", session_id=session_id, mode=mode, **(meta_extra or {}))
+    append_jsonl(events_path, meta_payload)
+    yield meta_payload
+
+    engine = LLMEngine()
+    result = await asyncio.to_thread(engine.run, prompt)
+
+    delta = event("delta", session_id=session_id, content=result)
+    append_jsonl(events_path, delta)
+    yield delta
+
+    done = event("done", session_id=session_id, result=result)
+    append_jsonl(events_path, done)
+    write_json(session_dir / "result.json", done)
+    yield done

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { streamWorkbenchRun, type StreamPayload } from "./lib/stream";
 
 type Mode = "inference" | "fs-agent";
+type BackendOption = "auto" | "alfred-cli" | "smolagents";
 
 type Artifact = {
   label: string;
@@ -61,6 +62,17 @@ function readArtifact(data: unknown): Artifact | null {
   };
 }
 
+function readBackend(data: unknown): string | null {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+
+  const candidate = data as Record<string, unknown>;
+  const backend = candidate.backend;
+  return typeof backend === "string" ? backend : null;
+}
+
+
 function readSessionId(data: unknown): string | null {
   if (!data || typeof data !== "object") {
     return null;
@@ -81,6 +93,8 @@ export default function App() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fsBackend, setFsBackend] = useState<BackendOption>("auto");
+  const [resolvedBackend, setResolvedBackend] = useState<string | null>(null);
   const outputRef = useRef<HTMLPreElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -116,12 +130,17 @@ export default function App() {
     setArtifacts([]);
     setSessionId(null);
     setErrorMessage(null);
+    setResolvedBackend(null);
 
     const path = mode === "inference" ? "/api/infer/stream" : "/api/fs-agent/stream";
     const body =
       mode === "inference"
         ? { prompt: trimmedPrompt }
-        : { prompt: trimmedPrompt, cwd: cwd.trim() || undefined };
+        : {
+            prompt: trimmedPrompt,
+            cwd: cwd.trim() || undefined,
+            backend: fsBackend,
+          };
 
     try {
       await streamWorkbenchRun(path, body, controller.signal, (payload: StreamPayload) => {
@@ -129,6 +148,10 @@ export default function App() {
           const maybeSessionId = readSessionId(payload.data);
           if (maybeSessionId) {
             setSessionId(maybeSessionId);
+          }
+          const backend = readBackend(payload.data);
+          if (backend) {
+            setResolvedBackend(backend);
           }
           setStatusDetail("Run initialized.");
           return;
@@ -193,6 +216,8 @@ export default function App() {
     setErrorMessage(null);
     setStatus("idle");
     setStatusDetail("Workbench cleared.");
+    setResolvedBackend(null);
+    setFsBackend("auto");
   }
 
   const isRunning = status === "running";
@@ -219,11 +244,21 @@ export default function App() {
             <div>
               <p className="panel__eyebrow">Execution Mode</p>
               <h2>{modeLabels[mode].title}</h2>
+              {resolvedBackend ? (
+                <p className="panel__copy">
+                  Running via <code>{resolvedBackend}</code>.
+                </p>
+              ) : null}
             </div>
             {sessionId ? <code className="session-chip">{sessionId}</code> : null}
           </div>
 
           <p className="panel__copy">{modeLabels[mode].subtitle}</p>
+          {mode === "fs-agent" ? (
+            <p className="panel__copy">
+              Backend: <strong>{fsBackend}</strong>
+            </p>
+          ) : null}
 
           <div className="mode-switch" role="tablist" aria-label="Execution mode">
             <button
@@ -261,6 +296,24 @@ export default function App() {
                 placeholder="/path/to/repo"
                 type="text"
               />
+            </label>
+          ) : null}
+          {mode === "fs-agent" ? (
+            <label className="field">
+              <span className="field__label">Backend</span>
+              <select
+                value={fsBackend}
+                onChange={(event) => setFsBackend(event.target.value as BackendOption)}
+              >
+                <option value="auto">Auto (prefer Alfred CLI)</option>
+                <option value="alfred-cli">Alfred CLI</option>
+                <option value="smolagents">Smolagents fallback</option>
+              </select>
+              {fsBackend === "smolagents" ? (
+                <p className="panel__copy">
+                  Smolagents is a fallback that runs only a prompt and cannot mutate the filesystem.
+                </p>
+              ) : null}
             </label>
           ) : null}
 
@@ -315,4 +368,3 @@ export default function App() {
     </div>
   );
 }
-

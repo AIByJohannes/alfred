@@ -3,33 +3,18 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 
-from llm import LLMEngine
-from scripts.common import append_jsonl, build_arg_parser, ensure_session, event, print_event, write_json
+from scripts.common import build_arg_parser, print_event, stream_llm_prompt
 
 
 async def stream_inference(prompt: str, *, session_id: str | None = None) -> AsyncIterator[dict[str, object]]:
-    session_id, session_dir = ensure_session(session_id)
-    events_path = session_dir / "events.ndjson"
-    write_json(
-        session_dir / "request.json",
-        {"type": "infer", "prompt": prompt, "session_id": session_id},
-    )
-
-    meta = event("meta", session_id=session_id, mode="inference")
-    append_jsonl(events_path, meta)
-    yield meta
-
-    engine = LLMEngine()
-    result = await asyncio.to_thread(engine.run, prompt)
-
-    delta = event("delta", session_id=session_id, content=result)
-    append_jsonl(events_path, delta)
-    yield delta
-
-    done = event("done", session_id=session_id, result=result)
-    append_jsonl(events_path, done)
-    write_json(session_dir / "result.json", done)
-    yield done
+    request_payload = {"type": "infer"}
+    async for payload in stream_llm_prompt(
+        prompt,
+        session_id=session_id,
+        request_payload=request_payload,
+        mode="inference",
+    ):
+        yield payload
 
 
 async def _main() -> None:
