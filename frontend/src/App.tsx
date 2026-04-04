@@ -19,6 +19,13 @@ type Message = {
   status?: Status;
 };
 
+type SessionMeta = {
+  id: string;
+  prompt: string;
+  mode: string;
+  timestamp: string;
+};
+
 const modeLabels: Record<Mode, { title: string; subtitle: string }> = {
   inference: {
     title: "Inference",
@@ -76,9 +83,24 @@ export default function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [statusDetail, setStatusDetail] = useState("Standing by.");
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
   
   const chatListRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  async function fetchSessions() {
+    try {
+      const res = await fetch("/api/sessions");
+      const data = await res.json();
+      setSessions(data);
+    } catch (e) {
+      console.error("Failed to fetch sessions:", e);
+    }
+  }
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
 
   useEffect(() => {
     if (chatListRef.current) {
@@ -164,6 +186,7 @@ export default function App() {
 
       setStatus((current) => (current === "running" ? "done" : current));
       setStatusDetail((current) => current === "Streaming response..." ? "Run complete." : current);
+      fetchSessions();
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         setStatus("idle");
@@ -176,6 +199,7 @@ export default function App() {
       setMessages((prev) => prev.map(msg => 
         msg.id === assistantMessageId ? { ...msg, status: "error", content: msg.content + "\n\nError: " + message } : msg
       ));
+      fetchSessions();
     }
   }
 
@@ -188,6 +212,56 @@ export default function App() {
     setStatus("idle");
     setStatusDetail("Workbench cleared.");
     setResolvedBackend(null);
+  }
+
+  async function handleLoadSession(id: string) {
+    if (isRunning) return;
+    abortRef.current?.abort();
+    handleClear();
+    
+    try {
+      const res = await fetch(`/api/sessions/${id}`);
+      if (!res.ok) throw new Error("Failed to load session");
+      const data = await res.json();
+      
+      const userPrompt = data.meta.prompt || "Loaded session";
+      const userMessage: Message = { id: `user-${id}`, role: "user", content: userPrompt };
+      
+      let assistantContent = "";
+      let finalStatus: Status = "idle";
+      const newArtifacts: Artifact[] = [];
+      
+      for (const ev of data.events) {
+        if (ev.type === "delta") {
+          const text = readText(ev.data);
+          if (text) assistantContent += text;
+        }
+        if (ev.type === "artifact") {
+          const artifact = readArtifact(ev.data);
+          if (artifact) newArtifacts.push(artifact);
+        }
+        if (ev.type === "done") finalStatus = "done";
+        if (ev.type === "error") finalStatus = "error";
+      }
+      
+      const assistantMessage: Message = { 
+        id: `assistant-${id}`, 
+        role: "assistant", 
+        content: assistantContent, 
+        status: finalStatus === "idle" ? "done" : finalStatus 
+      };
+      
+      setMessages([userMessage, assistantMessage]);
+      setArtifacts(newArtifacts);
+      setSessionId(id);
+      setMode(data.meta.mode === "fs-agent" ? "fs-agent" : "inference");
+      setStatus("idle");
+      setStatusDetail("Session loaded.");
+    } catch (error) {
+      console.error(error);
+      setStatus("error");
+      setStatusDetail("Failed to load session.");
+    }
   }
 
   const isRunning = status === "running";
@@ -246,11 +320,11 @@ export default function App() {
         )}
 
         <div className="sidebar-section" style={{ flex: 1, overflowY: 'auto' }}>
-          <h2>Session</h2>
+          <h2>Current Session</h2>
           {sessionId && <div className="session-chip">{sessionId}</div>}
           
           {artifacts.length > 0 && (
-            <ul className="artifact-list">
+            <ul className="artifact-list" style={{ marginBottom: '2rem' }}>
               {artifacts.map((artifact, index) => (
                 <li key={`${artifact.label}-${index}`} className="artifact-list__item">
                   <span>{artifact.label}</span>
@@ -259,6 +333,22 @@ export default function App() {
               ))}
             </ul>
           )}
+
+          <h2>History</h2>
+          <div className="history-list">
+            {sessions.map(session => (
+              <button 
+                key={session.id} 
+                className={`history-item ${sessionId === session.id ? 'is-active' : ''}`}
+                onClick={() => handleLoadSession(session.id)}
+              >
+                <div className="history-item__prompt">{session.prompt || "Empty prompt"}</div>
+                <div className="history-item__meta">
+                  {session.mode} • {session.timestamp}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="status-indicator">

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -12,11 +13,14 @@ from models import (
     FilesystemAgentRequest,
     HealthResponse,
     StreamRequest,
+    SessionMeta,
+    SessionDetail,
 )
 from prompts import SYSTEM_PROMPT
 from scripts.common import (
     format_sse_event,
     get_runtime_root,
+    get_sessions_root,
     resolve_alfred_binary,
 )
 from scripts.fs_agent import stream_filesystem_agent
@@ -92,6 +96,63 @@ async def filesystem_agent_stream(
             backend=request.backend,
         )
     )
+
+
+@app.get("/api/sessions", response_model=list[SessionMeta])
+async def list_sessions() -> list[SessionMeta]:
+    sessions_root = get_sessions_root()
+    sessions = []
+    if not sessions_root.exists():
+        return sessions
+    
+    for session_dir in sorted(sessions_root.iterdir(), key=lambda d: d.name, reverse=True):
+        if not session_dir.is_dir():
+            continue
+        req_file = session_dir / "request.json"
+        if req_file.exists():
+            try:
+                with open(req_file) as f:
+                    req_data = json.load(f)
+                sessions.append(SessionMeta(
+                    id=session_dir.name,
+                    prompt=req_data.get("prompt", ""),
+                    mode=req_data.get("mode", "unknown"),
+                    timestamp=session_dir.name.split("-")[0]
+                ))
+            except Exception:
+                pass
+    return sessions
+
+
+@app.get("/api/sessions/{session_id}", response_model=SessionDetail)
+async def get_session(session_id: str) -> SessionDetail:
+    sessions_root = get_sessions_root()
+    session_dir = sessions_root / session_id
+    if not session_dir.exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    req_file = session_dir / "request.json"
+    events_file = session_dir / "events.ndjson"
+    
+    meta_dict = {}
+    if req_file.exists():
+        with open(req_file) as f:
+            meta_dict = json.load(f)
+            
+    events = []
+    if events_file.exists():
+        with open(events_file) as f:
+            for line in f:
+                if line.strip():
+                    events.append(json.loads(line))
+                    
+    meta = SessionMeta(
+        id=session_dir.name,
+        prompt=meta_dict.get("prompt", ""),
+        mode=meta_dict.get("mode", "unknown"),
+        timestamp=session_dir.name.split("-")[0]
+    )
+    return SessionDetail(meta=meta, events=events)
 
 
 if __name__ == "__main__":

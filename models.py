@@ -33,3 +33,15 @@ class HealthResponse(BaseModel):
         FS_AGENT_BACKEND_SMOL,
     ])
     fs_agent_default_backend: Literal["alfred-cli", "smolagents"] = FS_AGENT_BACKEND_ALFRED
+
+
+class SessionMeta(BaseModel):
+    id: str
+    prompt: str
+    mode: str
+    timestamp: str
+
+
+class SessionDetail(BaseModel):
+    meta: SessionMeta
+    events: list[dict[str, object]]
