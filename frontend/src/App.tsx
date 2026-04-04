@@ -136,8 +136,8 @@ export default function App() {
 
     const path = mode === "inference" ? "/api/infer/stream" : "/api/fs-agent/stream";
     const body = mode === "inference" 
-      ? { prompt: trimmedPrompt }
-      : { prompt: trimmedPrompt, cwd: cwd.trim() || undefined, backend: fsBackend };
+      ? { prompt: trimmedPrompt, session_id: sessionId || undefined }
+      : { prompt: trimmedPrompt, cwd: cwd.trim() || undefined, backend: fsBackend, session_id: sessionId || undefined };
 
     try {
       await streamWorkbenchRun(path, body, controller.signal, (payload: StreamPayload) => {
