@@ -18,10 +18,12 @@ def test_llm_engine_initialization(mock_model, mock_agent, mock_env):
     engine = LLMEngine()
 
     mock_model.assert_called_once()
-    # Verify system_prompt was passed
+    # Verify our system prompt is injected via prompt templates
     mock_agent.assert_called_once()
     _, kwargs = mock_agent.call_args
-    assert kwargs.get("system_prompt") == SYSTEM_PROMPT
+    prompt_templates = kwargs.get("prompt_templates")
+    assert prompt_templates is not None
+    assert prompt_templates.get("system_prompt") == SYSTEM_PROMPT
     assert engine.model_id == "fake-model"
 
 

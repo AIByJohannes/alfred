@@ -16,7 +16,7 @@ dependencies = [
     "uvicorn[standard]>=0.32.0,<0.33",
     "pydantic>=2.9.0,<3",
     "ddgs>=9.5.4,<10",
-    "smolagents>=1.0.0,<2",
+    "smolagents[openai]>=1.0.0,<2",
 ]
 
 [dependency-groups]

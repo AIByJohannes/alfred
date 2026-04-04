@@ -1,4 +1,7 @@
 import os
+import importlib.resources
+
+import yaml
 
 from smolagents import CodeAgent, OpenAIServerModel
 
@@ -22,6 +25,12 @@ class LLMEngine:
                 "(Example: export OPENROUTER_API_KEY='...')"
             )
 
+        # Load default prompt templates and override the system prompt with our project prompt
+        prompt_templates = yaml.safe_load(
+            importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
+        )
+        prompt_templates["system_prompt"] = SYSTEM_PROMPT
+
         # Initialize the model via OpenAIServerModel for OpenRouter compatibility
         self.model = OpenAIServerModel(
             model_id=self.model_id,
@@ -29,12 +38,11 @@ class LLMEngine:
             api_key=self.api_key,
         )
 
-        # Initialize the agent
-        # We use CodeAgent as the default agent type for flexibility
+        # Initialize the agent using custom prompt templates that include our system prompt
         self.agent = CodeAgent(
             tools=[],
             model=self.model,
-            system_prompt=SYSTEM_PROMPT
+            prompt_templates=prompt_templates,
         )
 
         print(f"LLM engine ready (OpenRouter model={self.model_id}).")
