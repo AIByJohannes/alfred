@@ -23,7 +23,12 @@ def test_llm_engine_initialization(mock_model, mock_agent, mock_env):
     _, kwargs = mock_agent.call_args
     prompt_templates = kwargs.get("prompt_templates")
     assert prompt_templates is not None
-    assert prompt_templates.get("system_prompt") == SYSTEM_PROMPT
+    merged_prompt = prompt_templates.get("system_prompt", "")
+    assert SYSTEM_PROMPT in merged_prompt
+    # Ensure the default smolagents code-block instruction remains
+    assert "{{code_block_opening_tag}}" in merged_prompt
+    # Verify authorized imports are forwarded
+    assert kwargs.get("additional_authorized_imports") == ["os", "subprocess", "pathlib", "json"]
     assert engine.model_id == "fake-model"
 
 

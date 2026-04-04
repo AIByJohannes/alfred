@@ -25,11 +25,15 @@ class LLMEngine:
                 "(Example: export OPENROUTER_API_KEY='...')"
             )
 
-        # Load default prompt templates and override the system prompt with our project prompt
+        # Load default prompt templates and merge Alfred's persona with the built-in system prompt
         prompt_templates = yaml.safe_load(
             importlib.resources.files("smolagents.prompts").joinpath("code_agent.yaml").read_text()
         )
-        prompt_templates["system_prompt"] = SYSTEM_PROMPT
+        default_system_prompt = prompt_templates.get("system_prompt", "")
+        prompt_templates["system_prompt"] = f"{SYSTEM_PROMPT}\n\n{default_system_prompt}".strip()
+
+        # Allow a small, safe set of stdlib imports needed by our agent (e.g., os/subprocess for tooling)
+        authorized_imports = ["os", "subprocess", "pathlib", "json"]
 
         # Initialize the model via OpenAIServerModel for OpenRouter compatibility
         self.model = OpenAIServerModel(
@@ -43,6 +47,7 @@ class LLMEngine:
             tools=[],
             model=self.model,
             prompt_templates=prompt_templates,
+            additional_authorized_imports=authorized_imports,
         )
 
         print(f"LLM engine ready (OpenRouter model={self.model_id}).")
