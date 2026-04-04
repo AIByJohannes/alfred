@@ -45,3 +45,7 @@ class SessionMeta(BaseModel):
 class SessionDetail(BaseModel):
     meta: SessionMeta
     events: list[dict[str, object]]
+
+
+class SessionCreateRequest(BaseModel):
+    mode: str = "inference"
