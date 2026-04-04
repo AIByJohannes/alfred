@@ -49,6 +49,7 @@ uv run uvicorn main:app --reload
 ```
 
 The API runs on `http://127.0.0.1:8000`.
+You can also start both services with `just dev`.
 
 ### FastAPI Endpoints
 
@@ -67,6 +68,7 @@ npm run dev
 ```
 
 The Vite workbench runs on `http://127.0.0.1:5173`.
+If the backend is already running, `just frontend` is the browser entrypoint.
 
 ## CLI Wrapper Scripts
 
