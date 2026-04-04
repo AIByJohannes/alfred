@@ -12,6 +12,7 @@ from models import (
     FS_AGENT_BACKEND_SMOL,
     FilesystemAgentRequest,
     HealthResponse,
+    SessionCreateRequest,
     StreamRequest,
     SessionMeta,
     SessionDetail,
@@ -22,6 +23,8 @@ from scripts.common import (
     get_runtime_root,
     get_sessions_root,
     resolve_alfred_binary,
+    ensure_session,
+    write_json,
 )
 from scripts.fs_agent import stream_filesystem_agent
 from scripts.infer import stream_inference
@@ -153,6 +156,19 @@ async def get_session(session_id: str) -> SessionDetail:
         timestamp=session_dir.name.split("-")[0]
     )
     return SessionDetail(meta=meta, events=events)
+
+
+@app.post("/api/sessions/new", response_model=SessionMeta)
+async def create_session(request: SessionCreateRequest) -> SessionMeta:
+    session_id, session_dir = ensure_session()
+    payload = {"prompt": "", "mode": request.mode}
+    write_json(session_dir / "request.json", payload)
+    return SessionMeta(
+        id=session_id,
+        prompt="",
+        mode=request.mode,
+        timestamp=session_id.split("-")[0],
+    )
 
 
 if __name__ == "__main__":

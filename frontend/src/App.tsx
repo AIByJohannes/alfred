@@ -26,6 +26,12 @@ type SessionMeta = {
   timestamp: string;
 };
 
+const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
+function apiUrl(path: string): string {
+  return `${apiBase}${path}`;
+}
+
 const modeLabels: Record<Mode, { title: string; subtitle: string }> = {
   inference: {
     title: "Inference",
@@ -90,7 +96,7 @@ export default function App() {
 
   async function fetchSessions() {
     try {
-      const res = await fetch("/api/sessions");
+      const res = await fetch(apiUrl("/api/sessions"));
       const data = await res.json();
       setSessions(data);
     } catch (e) {
@@ -214,13 +220,38 @@ export default function App() {
     setResolvedBackend(null);
   }
 
+  async function handleNewChat() {
+    abortRef.current?.abort();
+    try {
+      const res = await fetch(apiUrl("/api/sessions/new"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      if (!res.ok) throw new Error("Failed to reserve new session");
+      const data = await res.json();
+      setPrompt("");
+      setMessages([]);
+      setArtifacts([]);
+      setSessionId(data.id);
+      setStatus("idle");
+      setStatusDetail("New chat ready.");
+      setResolvedBackend(null);
+      await fetchSessions();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Request failed.";
+      setStatus("error");
+      setStatusDetail(message);
+    }
+  }
+
   async function handleLoadSession(id: string) {
     if (isRunning) return;
     abortRef.current?.abort();
     handleClear();
     
     try {
-      const res = await fetch(`/api/sessions/${id}`);
+      const res = await fetch(apiUrl(`/api/sessions/${id}`));
       if (!res.ok) throw new Error("Failed to load session");
       const data = await res.json();
       
@@ -273,7 +304,7 @@ export default function App() {
           <h1>A.L.F.R.E.D.</h1>
           <button 
             className="new-chat-button" 
-            onClick={handleClear} 
+            onClick={handleNewChat}
             title="New Chat"
             aria-label="New Chat"
           >
