@@ -16,25 +16,30 @@ setup-frontend:
 setup: setup-conda setup-python setup-frontend
 
 backend:
-    conda run -n {{conda_env}} uv run --active uvicorn main:app --reload
+    conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --reload
 
 frontend:
     cd frontend && npm run dev
 
-dev: backend frontend
+dev:
+    #!/usr/bin/env bash
+    set -eu -o pipefail -o posix
+    trap 'kill $(jobs -p) 2>/dev/null' EXIT INT TERM
+    conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --reload &
+    cd frontend && npm run dev
 
 test:
-    conda run -n {{conda_env}} uv run --active pytest -q
+    conda run -n {{conda_env}} --live-stream uv run --active pytest -q
 
 test-verbose:
-    conda run -n {{conda_env}} uv run --active pytest -v
+    conda run -n {{conda_env}} --live-stream uv run --active pytest -v
 
 lint:
-    conda run -n {{conda_env}} uv run --active ruff check .
+    conda run -n {{conda_env}} --live-stream uv run --active ruff check .
     cd frontend && npm run build
 
 typecheck:
-    conda run -n {{conda_env}} uv run --active mypy .
+    conda run -n {{conda_env}} --live-stream uv run --active mypy .
     cd frontend && npx tsc -b
 
 build: build-frontend
@@ -43,7 +48,7 @@ build-frontend:
     cd frontend && npm run build
 
 prod: build-frontend
-    conda run -n {{conda_env}} uv run --active uvicorn main:app --host 0.0.0.0 --port 8000
+    conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --host 0.0.0.0 --port 8000
 
 clean:
     rm -rf frontend/dist
