@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from models import (
     FS_AGENT_BACKEND_ALFRED,
@@ -35,9 +38,12 @@ app = FastAPI(
     version="1.0.0",
 )
 
+_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+_cors_list = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_cors_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -107,7 +113,7 @@ async def list_sessions() -> list[SessionMeta]:
     sessions = []
     if not sessions_root.exists():
         return sessions
-    
+
     for session_dir in sorted(sessions_root.iterdir(), key=lambda d: d.name, reverse=True):
         if not session_dir.is_dir():
             continue
@@ -116,12 +122,14 @@ async def list_sessions() -> list[SessionMeta]:
             try:
                 with open(req_file) as f:
                     req_data = json.load(f)
-                sessions.append(SessionMeta(
-                    id=session_dir.name,
-                    prompt=req_data.get("prompt", ""),
-                    mode=req_data.get("mode", "unknown"),
-                    timestamp=session_dir.name.split("-")[0]
-                ))
+                sessions.append(
+                    SessionMeta(
+                        id=session_dir.name,
+                        prompt=req_data.get("prompt", ""),
+                        mode=req_data.get("mode", "unknown"),
+                        timestamp=session_dir.name.split("-")[0],
+                    )
+                )
             except Exception:
                 pass
     return sessions
@@ -133,27 +141,27 @@ async def get_session(session_id: str) -> SessionDetail:
     session_dir = sessions_root / session_id
     if not session_dir.exists():
         raise HTTPException(status_code=404, detail="Session not found")
-        
+
     req_file = session_dir / "request.json"
     events_file = session_dir / "events.ndjson"
-    
+
     meta_dict = {}
     if req_file.exists():
         with open(req_file) as f:
             meta_dict = json.load(f)
-            
+
     events = []
     if events_file.exists():
         with open(events_file) as f:
             for line in f:
                 if line.strip():
                     events.append(json.loads(line))
-                    
+
     meta = SessionMeta(
         id=session_dir.name,
         prompt=meta_dict.get("prompt", ""),
         mode=meta_dict.get("mode", "unknown"),
-        timestamp=session_dir.name.split("-")[0]
+        timestamp=session_dir.name.split("-")[0],
     )
     return SessionDetail(meta=meta, events=events)
 
@@ -169,6 +177,11 @@ async def create_session(request: SessionCreateRequest) -> SessionMeta:
         mode=request.mode,
         timestamp=session_id.split("-")[0],
     )
+
+
+_frontend_dist = Path(__file__).parent / "frontend" / "dist"
+if _frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="static")
 
 
 if __name__ == "__main__":

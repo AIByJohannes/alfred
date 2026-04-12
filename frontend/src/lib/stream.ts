@@ -49,14 +49,15 @@ function emitChunk(
   });
 }
 
+import { apiUrl } from "./api";
+
 export async function streamWorkbenchRun(
   path: string,
   body: Record<string, unknown>,
   signal: AbortSignal,
   onEvent: (payload: StreamPayload) => void,
 ): Promise<void> {
-  const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-  const response = await fetch(`${apiBase}${path}`, {
+  const response = await fetch(apiUrl(path), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

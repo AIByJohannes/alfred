@@ -86,6 +86,23 @@ See [`.env.example`](.env.example) for backend settings. The most important vari
 - `ALFRED_CLI_BIN`
 - `ALFRED_RUNTIME_ROOT`
 - `ALFRED_AGENT_MODE`
+- `CORS_ORIGINS` (optional, defaults to `http://localhost:5173,http://127.0.0.1:5173`)
+
+## Production
+
+Build the frontend:
+
+```bash
+cd frontend && npm run build
+```
+
+Run the backend - it automatically serves the built frontend from `frontend/dist`:
+
+```bash
+uv run uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+The API and UI are served from the same origin, avoiding CORS issues.
 
 ## Notes
 

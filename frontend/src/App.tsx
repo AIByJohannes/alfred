@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { streamWorkbenchRun, type StreamPayload } from "./lib/stream";
+import { apiUrl } from "./lib/api";
 
 type Mode = "inference" | "fs-agent";
 type BackendOption = "auto" | "alfred-cli" | "smolagents";
@@ -26,12 +27,6 @@ type SessionMeta = {
   timestamp: string;
 };
 
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-
-function apiUrl(path: string): string {
-  return `${apiBase}${path}`;
-}
-
 const modeLabels: Record<Mode, { title: string; subtitle: string }> = {
   inference: {
     title: "Inference",
@@ -47,7 +42,7 @@ function readText(data: unknown): string {
   if (typeof data === "string") return data;
   if (data && typeof data === "object") {
     const candidate = data as Record<string, unknown>;
-    const value = candidate.text ?? candidate.delta ?? candidate.message ?? candidate.content;
+    const value = candidate.text ?? candidate.delta ?? candidate.message ?? candidate.content ?? candidate.result;
     if (typeof value === "string") return value;
   }
   return "";
