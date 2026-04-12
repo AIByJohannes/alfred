@@ -101,6 +101,15 @@ async def chat_stream(request: StreamRequest) -> StreamingResponse:
     )
 
 
+@app.post("/api/infer/stream")
+async def infer_stream(request: StreamRequest) -> StreamingResponse:
+    return _sse_stream(
+        stream_chat(
+            request.prompt, session_id=request.session_id, image_base64=request.image_base64
+        )
+    )
+
+
 @app.post("/api/fs-agent/stream")
 async def filesystem_agent_stream(
     request: FilesystemAgentRequest,
@@ -155,6 +164,7 @@ async def get_session(session_id: str) -> SessionDetail:
 
     req_file = session_dir / "request.json"
     events_file = session_dir / "events.ndjson"
+    messages_file = session_dir / "messages.ndjson"
 
     meta_dict = {}
     if req_file.exists():
@@ -167,6 +177,14 @@ async def get_session(session_id: str) -> SessionDetail:
             for line in f:
                 if line.strip():
                     events.append(json.loads(line))
+
+    messages: list[dict] | None = None
+    if messages_file.exists():
+        messages = []
+        with open(messages_file) as f:
+            for line in f:
+                if line.strip():
+                    messages.append(json.loads(line))
 
     image_base64: str | None = None
     upload_path = session_dir / "upload.png"
@@ -181,7 +199,25 @@ async def get_session(session_id: str) -> SessionDetail:
         mode=_normalize_mode(raw_mode),
         timestamp=session_dir.name.split("-")[0],
     )
-    return SessionDetail(meta=meta, events=events, image_base64=image_base64)
+    return SessionDetail(meta=meta, events=events, image_base64=image_base64, messages=messages)
+
+
+@app.get("/api/sessions/{session_id}/image/{filename}")
+async def get_session_image(session_id: str, filename: str):
+    import base64
+
+    sessions_root = get_sessions_root()
+    session_dir = sessions_root / session_id
+    if not session_dir.exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    image_path = session_dir / filename
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    image_data = image_path.read_bytes()
+    b64 = base64.b64encode(image_data).decode("utf-8")
+    return {"image": b64}
 
 
 @app.post("/api/sessions/new", response_model=SessionMeta)

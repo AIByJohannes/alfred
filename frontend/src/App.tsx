@@ -324,39 +324,60 @@ export default function App() {
       if (!res.ok) throw new Error("Failed to load session");
       const data = await res.json();
       
-      const userPrompt = data.meta.prompt || "Loaded session";
-      const userMessage: Message = { 
-        id: `user-${id}`, 
-        role: "user", 
-        content: userPrompt,
-        imageBase64: data.image_base64 || undefined,
-      };
-      
-      let assistantContent = "";
-      let finalStatus: Status = "idle";
+      const loadedMessages: Message[] = [];
       const newArtifacts: Artifact[] = [];
       
-      for (const ev of data.events) {
-        if (ev.type === "delta") {
-          const text = readText(ev.data);
-          if (text) assistantContent += text;
+      if (data.messages && data.messages.length > 0) {
+        for (const msg of data.messages) {
+          let imageBase64: string | undefined;
+          if (msg.role === "user" && msg.image_ref) {
+            const imgRes = await fetch(apiUrl(`/api/sessions/${id}/image/${msg.image_ref}`));
+            if (imgRes.ok) {
+              const imgData = await imgRes.json();
+              imageBase64 = imgData.image;
+            }
+          }
+          loadedMessages.push({
+            id: `${msg.role}-${id}-${loadedMessages.length}`,
+            role: msg.role,
+            content: msg.content,
+            status: msg.status,
+            imageBase64,
+          });
         }
-        if (ev.type === "artifact") {
-          const artifact = readArtifact(ev.data);
-          if (artifact) newArtifacts.push(artifact);
+      } else {
+        const userPrompt = data.meta.prompt || "Loaded session";
+        let assistantContent = "";
+        let finalStatus: Status = "idle";
+        
+        for (const ev of data.events) {
+          if (ev.type === "delta") {
+            const raw = ev as Record<string, unknown>;
+            assistantContent += String(raw.content ?? raw.delta ?? raw.message ?? raw.result ?? "");
+          }
+          if (ev.type === "artifact") {
+            const artifact = readArtifact(ev);
+            if (artifact) newArtifacts.push(artifact);
+          }
+          if (ev.type === "done") finalStatus = "done";
+          if (ev.type === "error") finalStatus = "error";
         }
-        if (ev.type === "done") finalStatus = "done";
-        if (ev.type === "error") finalStatus = "error";
+        
+        loadedMessages.push({
+          id: `user-${id}`,
+          role: "user",
+          content: userPrompt,
+          imageBase64: data.image_base64,
+        });
+        loadedMessages.push({
+          id: `assistant-${id}`,
+          role: "assistant",
+          content: assistantContent,
+          status: finalStatus === "idle" ? "done" : finalStatus,
+        });
       }
       
-      const assistantMessage: Message = { 
-        id: `assistant-${id}`, 
-        role: "assistant", 
-        content: assistantContent, 
-        status: finalStatus === "idle" ? "done" : finalStatus 
-      };
-      
-      setMessages([userMessage, assistantMessage]);
+      setMessages(loadedMessages);
       setArtifacts(newArtifacts);
       setSessionId(id);
       setMode(data.meta.mode === "fs-agent" ? "fs-agent" : "chat");

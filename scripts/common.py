@@ -67,6 +67,28 @@ def append_jsonl(path: Path, payload: Any) -> None:
         handle.write(json.dumps(payload) + "\n")
 
 
+def get_messages_path(session_dir: Path) -> Path:
+    return session_dir / "messages.ndjson"
+
+
+def append_message(
+    session_dir: Path,
+    role: str,
+    content: str,
+    status: str | None = None,
+    image_ref: str | None = None,
+) -> None:
+    msg: dict[str, Any] = {
+        "role": role,
+        "content": content,
+    }
+    if status:
+        msg["status"] = status
+    if image_ref:
+        msg["image_ref"] = image_ref
+    append_jsonl(get_messages_path(session_dir), msg)
+
+
 def event(event_type: str, **payload: Any) -> dict[str, Any]:
     return {"type": event_type, **payload}
 
@@ -158,6 +180,10 @@ async def relay_subprocess(
     result_path = session_dir / "result.json"
     write_json(request_path, request_payload)
 
+    prompt = request_payload.get("prompt", "")
+    if prompt:
+        append_message(session_dir, "user", prompt)
+
     meta_payload = event(
         "meta",
         session_id=session_dir.name,
@@ -221,18 +247,26 @@ async def relay_subprocess(
         )
         append_jsonl(events_path, error_payload)
         yield error_payload
+        if prompt:
+            append_message(
+                session_dir, "assistant", stderr or f"Exit code {return_code}", status="error"
+            )
         return
 
     if stderr:
         note_payload = event("error", session_id=session_dir.name, message=stderr)
         append_jsonl(events_path, note_payload)
         yield note_payload
+        if prompt:
+            append_message(session_dir, "assistant", stderr, status="error")
 
     if not result_path.exists():
         payload = event("done", session_id=session_dir.name, result="completed")
         write_json(result_path, payload)
         append_jsonl(events_path, payload)
         yield payload
+        if prompt:
+            append_message(session_dir, "assistant", "Task completed", status="done")
 
 
 def parse_cli_event(line: str) -> dict[str, Any]:
@@ -283,12 +317,14 @@ async def stream_llm_prompt(
     yield meta_payload
 
     image_path: Path | None = None
+    image_ref: str | None = None
     if image_base64:
         try:
             image_data = base64.b64decode(image_base64, validate=True)
             image = Image.open(io.BytesIO(image_data))
             image.load()
-            image_path = session_dir / "upload.png"
+            image_ref = f"upload-{uuid4().hex[:8]}.png"
+            image_path = session_dir / image_ref
             image.save(image_path)
         except (ValueError, binascii.Error, OSError):
             error_payload = event(
@@ -298,7 +334,10 @@ async def stream_llm_prompt(
             )
             append_jsonl(events_path, error_payload)
             yield error_payload
+            append_message(session_dir, "assistant", "", status="error", image_ref=None)
             return
+
+    append_message(session_dir, "user", prompt, image_ref=image_ref)
 
     engine = LLMEngine()
     result = await asyncio.to_thread(engine.run, prompt, image_path=image_path)
@@ -311,3 +350,5 @@ async def stream_llm_prompt(
     append_jsonl(events_path, done)
     write_json(session_dir / "result.json", done)
     yield done
+
+    append_message(session_dir, "assistant", result, status="done")

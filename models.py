@@ -46,10 +46,18 @@ class SessionMeta(BaseModel):
     timestamp: str
 
 
+class Message(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    status: Literal["done", "error", "running"] | None = None
+    image_ref: str | None = None
+
+
 class SessionDetail(BaseModel):
     meta: SessionMeta
     events: list[dict[str, object]]
     image_base64: str | None = None
+    messages: list[Message] | None = None
 
 
 class SessionCreateRequest(BaseModel):
