@@ -30,7 +30,7 @@ from scripts.common import (
     write_json,
 )
 from scripts.fs_agent import stream_filesystem_agent
-from scripts.infer import stream_inference
+from scripts.chat import stream_chat
 
 app = FastAPI(
     title="Alfred Local Workbench API",
@@ -66,6 +66,10 @@ def _sse_stream(events: AsyncIterator[dict[str, object]]) -> StreamingResponse:
     )
 
 
+def _normalize_mode(mode: str) -> str:
+    return "chat" if mode == "inference" else mode
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     binary = resolve_alfred_binary()
@@ -88,10 +92,10 @@ async def root() -> dict[str, str]:
     }
 
 
-@app.post("/api/infer/stream")
-async def infer_stream(request: StreamRequest) -> StreamingResponse:
+@app.post("/api/chat/stream")
+async def chat_stream(request: StreamRequest) -> StreamingResponse:
     return _sse_stream(
-        stream_inference(
+        stream_chat(
             request.prompt, session_id=request.session_id, image_base64=request.image_base64
         )
     )
@@ -126,11 +130,12 @@ async def list_sessions() -> list[SessionMeta]:
             try:
                 with open(req_file) as f:
                     req_data = json.load(f)
+                raw_mode = req_data.get("mode", "unknown")
                 sessions.append(
                     SessionMeta(
                         id=session_dir.name,
                         prompt=req_data.get("prompt", ""),
-                        mode=req_data.get("mode", "unknown"),
+                        mode=_normalize_mode(raw_mode),
                         timestamp=session_dir.name.split("-")[0],
                     )
                 )
@@ -169,10 +174,11 @@ async def get_session(session_id: str) -> SessionDetail:
         image_data = upload_path.read_bytes()
         image_base64 = base64.b64encode(image_data).decode("utf-8")
 
+    raw_mode = meta_dict.get("mode", "unknown")
     meta = SessionMeta(
         id=session_dir.name,
         prompt=meta_dict.get("prompt", ""),
-        mode=meta_dict.get("mode", "unknown"),
+        mode=_normalize_mode(raw_mode),
         timestamp=session_dir.name.split("-")[0],
     )
     return SessionDetail(meta=meta, events=events, image_base64=image_base64)
@@ -181,12 +187,14 @@ async def get_session(session_id: str) -> SessionDetail:
 @app.post("/api/sessions/new", response_model=SessionMeta)
 async def create_session(request: SessionCreateRequest) -> SessionMeta:
     session_id, session_dir = ensure_session()
-    payload = {"prompt": "", "mode": request.mode}
+    raw_mode = request.mode
+    normalized = _normalize_mode(raw_mode)
+    payload = {"prompt": "", "mode": normalized}
     write_json(session_dir / "request.json", payload)
     return SessionMeta(
         id=session_id,
         prompt="",
-        mode=request.mode,
+        mode=normalized,
         timestamp=session_id.split("-")[0],
     )
 

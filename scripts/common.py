@@ -262,7 +262,7 @@ async def stream_llm_prompt(
     *,
     session_id: str | None = None,
     request_payload: dict[str, Any] | None = None,
-    mode: str = "inference",
+    mode: str = "chat",
     meta_extra: dict[str, Any] | None = None,
     image_base64: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:

@@ -53,4 +53,4 @@ class SessionDetail(BaseModel):
 
 
 class SessionCreateRequest(BaseModel):
-    mode: str = "inference"
+    mode: str = "chat"

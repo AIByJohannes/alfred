@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { streamWorkbenchRun, type StreamPayload } from "./lib/stream";
 import { apiUrl } from "./lib/api";
 
-type Mode = "inference" | "fs-agent";
+type Mode = "chat" | "fs-agent";
 type BackendOption = "auto" | "alfred-cli" | "smolagents";
 
 type Artifact = {
@@ -29,9 +29,9 @@ type SessionMeta = {
 };
 
 const modeLabels: Record<Mode, { title: string; subtitle: string }> = {
-  inference: {
+  chat: {
     title: "Chat",
-    subtitle: "Python inference only. No filesystem meddling.",
+    subtitle: "Python chat only. No filesystem meddling.",
   },
   "fs-agent": {
     title: "Filesystem Agent",
@@ -74,7 +74,7 @@ function readSessionId(data: unknown): string | null {
 }
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>("inference");
+  const [mode, setMode] = useState<Mode>("chat");
   const [prompt, setPrompt] = useState("");
   const [cwd, setCwd] = useState("");
   const [fsBackend, setFsBackend] = useState<BackendOption>("auto");
@@ -192,7 +192,7 @@ export default function App() {
     const assistantMessageId = Math.random().toString(36).slice(2);
 
     const userMessage: Message = { id: userMessageId, role: "user", content: trimmedPrompt };
-    if (pendingImage && mode === "inference") {
+    if (pendingImage && mode === "chat") {
       userMessage.imageBase64 = pendingImage;
     }
     setMessages((prev) => [
@@ -207,8 +207,8 @@ export default function App() {
     setStatusDetail("Streaming response...");
     setResolvedBackend(null);
 
-    const path = mode === "inference" ? "/api/infer/stream" : "/api/fs-agent/stream";
-    const body = mode === "inference" 
+    const path = mode === "chat" ? "/api/infer/stream" : "/api/fs-agent/stream";
+    const body = mode === "chat" 
       ? { prompt: trimmedPrompt, session_id: sessionId || undefined, image_base64: pendingImage || undefined }
       : { prompt: trimmedPrompt, cwd: cwd.trim() || undefined, backend: fsBackend, session_id: sessionId || undefined };
 
@@ -359,7 +359,7 @@ export default function App() {
       setMessages([userMessage, assistantMessage]);
       setArtifacts(newArtifacts);
       setSessionId(id);
-      setMode(data.meta.mode === "fs-agent" ? "fs-agent" : "inference");
+      setMode(data.meta.mode === "fs-agent" ? "fs-agent" : "chat");
       setStatus("idle");
       setStatusDetail("Session loaded.");
     } catch (error) {
@@ -394,10 +394,10 @@ export default function App() {
           <div className="mode-switch" role="tablist">
             <button
               type="button"
-              className={mode === "inference" ? "mode-switch__item is-active" : "mode-switch__item"}
-              onClick={() => setMode("inference")}
+              className={mode === "chat" ? "mode-switch__item is-active" : "mode-switch__item"}
+              onClick={() => setMode("chat")}
             >
-              Inference
+              Chat
             </button>
             <button
               type="button"
@@ -525,7 +525,7 @@ export default function App() {
               )}
             </div>
             <div className="chat-input-actions">
-              {mode === "inference" && (
+              {mode === "chat" && (
                 <button 
                   type="button" 
                   className="button button--ghost camera-button" 
