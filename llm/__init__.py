@@ -1,8 +1,8 @@
-import os
 import importlib.resources
+import os
+from pathlib import Path
 
 import yaml
-
 from smolagents import CodeAgent, OpenAIServerModel
 
 from prompts import SYSTEM_PROMPT
@@ -32,7 +32,7 @@ class LLMEngine:
         default_system_prompt = prompt_templates.get("system_prompt", "")
         prompt_templates["system_prompt"] = f"{SYSTEM_PROMPT}\n\n{default_system_prompt}".strip()
 
-        # Allow a small, safe set of stdlib imports needed by our agent (e.g., os/subprocess for tooling)
+        # Allow stdlib imports for our agent (e.g., os/subprocess for tooling)
         authorized_imports = ["os", "subprocess", "pathlib", "json"]
 
         # Initialize the model via OpenAIServerModel for OpenRouter compatibility
@@ -52,7 +52,11 @@ class LLMEngine:
 
         print(f"LLM engine ready (OpenRouter model={self.model_id}).")
 
-    def run(self, prompt: str) -> str:
-        # Agent.run returns the result of the execution
-        result = self.agent.run(prompt)
+    def run(self, prompt: str, image_path: "Path | None" = None) -> str:
+        images = None
+        if image_path:
+            from PIL import Image
+
+            images = [Image.open(image_path)]
+        result = self.agent.run(prompt, images=images)
         return str(result)

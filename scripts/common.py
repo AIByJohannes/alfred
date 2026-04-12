@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
+import binascii
+import io
 import json
 import os
 import shlex
@@ -12,17 +15,16 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-DEFAULT_RUNTIME_ROOT = ".alfred-runtime"
-DEFAULT_AGENT_MODE = "fs-agent"
-
-from llm import LLMEngine  # noqa: E402
-
+from llm import LLMEngine
 from models import (
     FS_AGENT_BACKEND_ALFRED,
     FS_AGENT_BACKEND_AUTO,
     FS_AGENT_BACKEND_SMOL,
     FsAgentBackend,
 )
+
+DEFAULT_RUNTIME_ROOT = ".alfred-runtime"
+DEFAULT_AGENT_MODE = "fs-agent"
 
 
 def get_repo_root() -> Path:
@@ -244,7 +246,9 @@ def parse_cli_event(line: str) -> dict[str, Any]:
     return payload
 
 
-def build_arg_parser(name: str, description: str, include_cwd: bool = False) -> argparse.ArgumentParser:
+def build_arg_parser(
+    name: str, description: str, include_cwd: bool = False
+) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog=name, description=description)
     parser.add_argument("prompt", help="Task or prompt text")
     parser.add_argument("--session-id", dest="session_id")
@@ -260,21 +264,44 @@ async def stream_llm_prompt(
     request_payload: dict[str, Any] | None = None,
     mode: str = "inference",
     meta_extra: dict[str, Any] | None = None,
+    image_base64: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
+    from PIL import Image
+
     session_id, session_dir = ensure_session(session_id)
     events_path = session_dir / "events.ndjson"
     payload = dict(request_payload or {})
     payload.setdefault("type", mode)
     payload["prompt"] = prompt
     payload["session_id"] = session_id
+    if image_base64:
+        payload["image"] = True
     write_json(session_dir / "request.json", payload)
 
     meta_payload = event("meta", session_id=session_id, mode=mode, **(meta_extra or {}))
     append_jsonl(events_path, meta_payload)
     yield meta_payload
 
+    image_path: Path | None = None
+    if image_base64:
+        try:
+            image_data = base64.b64decode(image_base64, validate=True)
+            image = Image.open(io.BytesIO(image_data))
+            image.load()
+            image_path = session_dir / "upload.png"
+            image.save(image_path)
+        except (ValueError, binascii.Error, OSError):
+            error_payload = event(
+                "error",
+                session_id=session_id,
+                message="Invalid image attachment.",
+            )
+            append_jsonl(events_path, error_payload)
+            yield error_payload
+            return
+
     engine = LLMEngine()
-    result = await asyncio.to_thread(engine.run, prompt)
+    result = await asyncio.to_thread(engine.run, prompt, image_path=image_path)
 
     delta = event("delta", session_id=session_id, content=result)
     append_jsonl(events_path, delta)

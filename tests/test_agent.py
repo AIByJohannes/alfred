@@ -43,7 +43,9 @@ def test_llm_engine_run(mock_model, mock_agent_class, mock_env):
     engine = LLMEngine()
     result = engine.run("Test prompt")
 
-    mock_agent_instance.run.assert_called_once_with("Test prompt")
+    mock_agent_instance.run.assert_called_once()
+    call_args = mock_agent_instance.run.call_args
+    assert call_args[0][0] == "Test prompt"
     assert result == "Agent response"
 
 

@@ -6,13 +6,19 @@ from collections.abc import AsyncIterator
 from scripts.common import build_arg_parser, print_event, stream_llm_prompt
 
 
-async def stream_inference(prompt: str, *, session_id: str | None = None) -> AsyncIterator[dict[str, object]]:
-    request_payload = {"type": "infer"}
+async def stream_inference(
+    prompt: str,
+    *,
+    session_id: str | None = None,
+    image_base64: str | None = None,
+) -> AsyncIterator[dict[str, object]]:
+    request_payload = {"type": "infer", "image": bool(image_base64)}
     async for payload in stream_llm_prompt(
         prompt,
         session_id=session_id,
         request_payload=request_payload,
         mode="inference",
+        image_base64=image_base64,
     ):
         yield payload
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from models import (
@@ -16,17 +16,17 @@ from models import (
     FilesystemAgentRequest,
     HealthResponse,
     SessionCreateRequest,
-    StreamRequest,
-    SessionMeta,
     SessionDetail,
+    SessionMeta,
+    StreamRequest,
 )
 from prompts import SYSTEM_PROMPT
 from scripts.common import (
+    ensure_session,
     format_sse_event,
     get_runtime_root,
     get_sessions_root,
     resolve_alfred_binary,
-    ensure_session,
     write_json,
 )
 from scripts.fs_agent import stream_filesystem_agent
@@ -90,7 +90,11 @@ async def root() -> dict[str, str]:
 
 @app.post("/api/infer/stream")
 async def infer_stream(request: StreamRequest) -> StreamingResponse:
-    return _sse_stream(stream_inference(request.prompt, session_id=request.session_id))
+    return _sse_stream(
+        stream_inference(
+            request.prompt, session_id=request.session_id, image_base64=request.image_base64
+        )
+    )
 
 
 @app.post("/api/fs-agent/stream")
@@ -137,6 +141,8 @@ async def list_sessions() -> list[SessionMeta]:
 
 @app.get("/api/sessions/{session_id}", response_model=SessionDetail)
 async def get_session(session_id: str) -> SessionDetail:
+    import base64
+
     sessions_root = get_sessions_root()
     session_dir = sessions_root / session_id
     if not session_dir.exists():
@@ -157,13 +163,19 @@ async def get_session(session_id: str) -> SessionDetail:
                 if line.strip():
                     events.append(json.loads(line))
 
+    image_base64: str | None = None
+    upload_path = session_dir / "upload.png"
+    if upload_path.exists():
+        image_data = upload_path.read_bytes()
+        image_base64 = base64.b64encode(image_data).decode("utf-8")
+
     meta = SessionMeta(
         id=session_dir.name,
         prompt=meta_dict.get("prompt", ""),
         mode=meta_dict.get("mode", "unknown"),
         timestamp=session_dir.name.split("-")[0],
     )
-    return SessionDetail(meta=meta, events=events)
+    return SessionDetail(meta=meta, events=events, image_base64=image_base64)
 
 
 @app.post("/api/sessions/new", response_model=SessionMeta)

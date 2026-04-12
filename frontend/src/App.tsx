@@ -17,6 +17,7 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  imageBase64?: string;
   status?: Status;
 };
 
@@ -29,7 +30,7 @@ type SessionMeta = {
 
 const modeLabels: Record<Mode, { title: string; subtitle: string }> = {
   inference: {
-    title: "Inference",
+    title: "Chat",
     subtitle: "Python inference only. No filesystem meddling.",
   },
   "fs-agent": {
@@ -86,8 +87,65 @@ export default function App() {
   const [statusDetail, setStatusDetail] = useState("Standing by.");
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+
   const chatListRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  function stopCameraStream() {
+    const stream = cameraStreamRef.current;
+    if (!stream) return;
+    stream.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }
+
+  async function handleOpenCamera() {
+    try {
+      stopCameraStream();
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      cameraStreamRef.current = stream;
+      setShowCamera(true);
+    } catch (e) {
+      console.error("Camera access denied:", e);
+      setStatusDetail("Camera access denied.");
+    }
+  }
+
+  async function handleCapture() {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const dataUrl = canvas.toDataURL("image/png");
+        setPendingImage(dataUrl.slice(22)); // remove "data:image/png;base64,"
+        handleCloseCamera();
+      }
+    }
+  }
+
+  function handleRetake() {
+    handleOpenCamera();
+  }
+
+  function handleRemoveImage() {
+    setPendingImage(null);
+  }
+
+  function handleCloseCamera() {
+    stopCameraStream();
+    setShowCamera(false);
+  }
 
   async function fetchSessions() {
     try {
@@ -110,7 +168,16 @@ export default function App() {
   }, [messages]);
 
   useEffect(() => {
-    return () => abortRef.current?.abort();
+    if (showCamera && videoRef.current && cameraStreamRef.current) {
+      videoRef.current.srcObject = cameraStreamRef.current;
+    }
+  }, [showCamera]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      stopCameraStream();
+    };
   }, []);
 
   async function handleRun() {
@@ -124,20 +191,25 @@ export default function App() {
     const userMessageId = Math.random().toString(36).slice(2);
     const assistantMessageId = Math.random().toString(36).slice(2);
 
+    const userMessage: Message = { id: userMessageId, role: "user", content: trimmedPrompt };
+    if (pendingImage && mode === "inference") {
+      userMessage.imageBase64 = pendingImage;
+    }
     setMessages((prev) => [
       ...prev,
-      { id: userMessageId, role: "user", content: trimmedPrompt },
+      userMessage,
       { id: assistantMessageId, role: "assistant", content: "", status: "running" }
     ]);
     
     setPrompt("");
+    setPendingImage(null);
     setStatus("running");
     setStatusDetail("Streaming response...");
     setResolvedBackend(null);
 
     const path = mode === "inference" ? "/api/infer/stream" : "/api/fs-agent/stream";
     const body = mode === "inference" 
-      ? { prompt: trimmedPrompt, session_id: sessionId || undefined }
+      ? { prompt: trimmedPrompt, session_id: sessionId || undefined, image_base64: pendingImage || undefined }
       : { prompt: trimmedPrompt, cwd: cwd.trim() || undefined, backend: fsBackend, session_id: sessionId || undefined };
 
     try {
@@ -207,6 +279,8 @@ export default function App() {
   function handleClear() {
     abortRef.current?.abort();
     setPrompt("");
+    setPendingImage(null);
+    handleCloseCamera();
     setMessages([]);
     setArtifacts([]);
     setSessionId(null);
@@ -251,7 +325,12 @@ export default function App() {
       const data = await res.json();
       
       const userPrompt = data.meta.prompt || "Loaded session";
-      const userMessage: Message = { id: `user-${id}`, role: "user", content: userPrompt };
+      const userMessage: Message = { 
+        id: `user-${id}`, 
+        role: "user", 
+        content: userPrompt,
+        imageBase64: data.image_base64 || undefined,
+      };
       
       let assistantContent = "";
       let finalStatus: Status = "idle";
@@ -411,6 +490,9 @@ export default function App() {
                     {msg.role === "assistant" ? "A" : "U"}
                   </div>
                   <div className={`message-content ${msg.role}`}>
+                    {msg.role === "user" && msg.imageBase64 && (
+                      <img src={`data:image/png;base64,${msg.imageBase64}`} alt="Attached" className="message-image" />
+                    )}
                     {msg.content}
                     {msg.status === "running" && <span style={{ opacity: 0.5 }}>...</span>}
                   </div>
@@ -422,19 +504,41 @@ export default function App() {
 
         <div className="chat-input-container">
           <div className="chat-input-wrapper">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleRun();
-                }
-              }}
-              placeholder="Message Alfred..."
-              rows={1}
-            />
+            <div className="chat-input-main">
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleRun();
+                  }
+                }}
+                placeholder="Message Alfred..."
+                rows={1}
+              />
+              {pendingImage && (
+                <div className="pending-image-preview">
+                  <img src={`data:image/png;base64,${pendingImage}`} alt="Preview" />
+                  <button type="button" onClick={handleRemoveImage} className="pending-image-remove" title="Remove">×</button>
+                </div>
+              )}
+            </div>
             <div className="chat-input-actions">
+              {mode === "inference" && (
+                <button 
+                  type="button" 
+                  className="button button--ghost camera-button" 
+                  onClick={handleOpenCamera}
+                  title="Take a photo"
+                  style={{ padding: '0.4rem 0.8rem' }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                </button>
+              )}
               <button 
                 type="button" 
                 className="button button--ghost" 
@@ -454,6 +558,19 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {showCamera && (
+          <div className="camera-modal">
+            <div className="camera-modal-content">
+              <video ref={videoRef} autoPlay playsInline muted />
+              <canvas ref={canvasRef} style={{ display: "none" }} />
+              <div className="camera-modal-actions">
+                <button type="button" className="button button--ghost" onClick={handleCloseCamera}>Cancel</button>
+                <button type="button" className="button button--primary" onClick={handleCapture}>Capture</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

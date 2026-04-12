@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from models import FS_AGENT_BACKEND_ALFRED, FS_AGENT_BACKEND_SMOL
 from scripts.common import (
@@ -87,7 +88,7 @@ async def test_stream_llm_prompt_records_events(monkeypatch, tmp_path):
     monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
 
     class DummyEngine:
-        def run(self, prompt: str) -> str:
+        def run(self, prompt: str, **kwargs: object) -> str:
             assert prompt == "test prompt"
             return "response"
 
