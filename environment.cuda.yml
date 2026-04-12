@@ -8,6 +8,6 @@ dependencies:
   - pip
   - pytorch
   - torchaudio
-  - pytorch-cuda=12.6
+  - pytorch-cuda=12.4
   - cudnn>=9,<10
   - ffmpeg

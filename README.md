@@ -131,7 +131,7 @@ Alfred supports local audio transcription using Whisper models via faster-whispe
 
 ### GPU Setup (Recommended for RTX 4080)
 
-Create a Conda environment with CUDA 12.6 and PyTorch:
+Create a Conda environment with CUDA 12.4 and PyTorch:
 
 ```bash
 conda env create -f environment.cuda.yml
