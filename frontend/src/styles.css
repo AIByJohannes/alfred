@@ -188,6 +188,23 @@ button {
   background: var(--bg);
 }
 
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 0.85rem;
+}
+
+.status-banner__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .chat-list {
   flex: 1;
   overflow-y: auto;
