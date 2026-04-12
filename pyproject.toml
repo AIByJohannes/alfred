@@ -17,6 +17,15 @@ dependencies = [
     "pydantic>=2.9.0,<3",
     "ddgs>=9.5.4,<10",
     "smolagents[openai]>=1.0.0,<2",
+    "python-multipart>=0.0.6,<1",
+]
+
+[project.optional-dependencies]
+transcribe = [
+    "faster-whisper>=1.0.0,<2",
+]
+nemo = [
+    "nemo-toolkit[asr]>=2.0.0,<3",
 ]
 
 [dependency-groups]
@@ -30,7 +39,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["llm", "prompts", "scripts"]
+packages = ["llm", "prompts", "scripts", "transcription"]
 
 [build-system]
 requires = ["hatchling"]

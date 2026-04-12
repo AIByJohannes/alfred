@@ -2,31 +2,39 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 default: dev
 
-setup:
-    uv sync
+conda_env := "alfred-cuda"
+
+setup-conda:
+    conda env update -f environment.cuda.yml --prune || conda env create -f environment.cuda.yml
+
+setup-python:
+    conda run -n {{conda_env}} uv sync --active --extra transcribe
+
+setup-frontend:
     cd frontend && npm install
 
+setup: setup-conda setup-python setup-frontend
+
 backend:
-    uv run uvicorn main:app --reload
+    conda run -n {{conda_env}} uv run --active uvicorn main:app --reload
 
 frontend:
     cd frontend && npm run dev
 
-dev:
-    bash scripts/dev.sh
+dev: backend frontend
 
 test:
-    pytest -q
+    conda run -n {{conda_env}} uv run --active pytest -q
 
 test-verbose:
-    pytest -v
+    conda run -n {{conda_env}} uv run --active pytest -v
 
 lint:
-    ruff check .
+    conda run -n {{conda_env}} uv run --active ruff check .
     cd frontend && npm run build
 
 typecheck:
-    mypy .
+    conda run -n {{conda_env}} uv run --active mypy .
     cd frontend && npx tsc -b
 
 build: build-frontend
@@ -35,7 +43,7 @@ build-frontend:
     cd frontend && npm run build
 
 prod: build-frontend
-    uv run uvicorn main:app --host 0.0.0.0 --port 8000
+    conda run -n {{conda_env}} uv run --active uvicorn main:app --host 0.0.0.0 --port 8000
 
 clean:
     rm -rf frontend/dist

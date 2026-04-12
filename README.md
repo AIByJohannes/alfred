@@ -40,16 +40,37 @@ alfred/
 - Node.js 20+
 - A built or installed `alfred` binary from `../alfred-cli`
 - `OPENROUTER_API_KEY` for Python-side inference
+- Conda (for GPU/transcription features)
 
-## Backend Setup
+## Quick Start
 
 ```bash
-uv sync
-uv run uvicorn main:app --reload
+# One-time setup: creates Conda env with CUDA, installs Python + frontend deps
+just setup
+
+# Run both backend and frontend
+just dev
+
+# Or run them separately:
+just backend   # API on http://127.0.0.1:8000
+just frontend # UI on http://127.0.0.1:5173
 ```
 
-The API runs on `http://127.0.0.1:8000`.
-You can also start both services with `just dev`.
+## Backend Setup (Manual)
+
+If you don't use `just`:
+
+```bash
+# GPU environment (recommended for transcription)
+conda env create -f environment.cuda.yml
+conda activate alfred-cuda
+uv sync --extra transcribe
+
+# Or without GPU
+uv sync
+
+uv run uvicorn main:app --reload
+```
 
 ### FastAPI Endpoints
 
@@ -103,6 +124,64 @@ uv run uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 The API and UI are served from the same origin, avoiding CORS issues.
+
+## Transcription (Audio to Text)
+
+Alfred supports local audio transcription using Whisper models via faster-whisper with CUDA acceleration.
+
+### GPU Setup (Recommended for RTX 4080)
+
+Create a Conda environment with CUDA 12.6 and PyTorch:
+
+```bash
+conda env create -f environment.cuda.yml
+conda activate alfred-cuda
+```
+
+Then sync the project with the transcription extra:
+
+```bash
+uv sync --active --extra transcribe
+```
+
+Verify GPU access:
+
+```bash
+uv run --active python -c "import torch; print('CUDA:', torch.cuda.is_available(), 'Version:', torch.version.cuda)"
+```
+
+### Usage
+
+1. Open the Alfred web interface
+2. Click the microphone icon in the chat input area
+3. Upload an audio file (MP3, WAV, FLAC, M4A, OGG, WebM, WMA)
+4. The transcript appears in the input box, ready to send
+
+### Configuration
+
+See `.env.example` for transcription settings:
+
+- `ALFRED_TRANSCRIBE_BACKEND` (default: `faster-whisper`)
+- `ALFRED_TRANSCRIBE_MODEL` (default: `openai/whisper-large-v3-turbo`)
+- `ALFRED_TRANSCRIBE_DEVICE` (default: `cuda`)
+- `ALFRED_TRANSCRIBE_COMPUTE_TYPE` (default: `float16`)
+- `ALFRED_TRANSCRIBE_LANGUAGE` (default: `auto` - auto-detect, use `de` for German)
+- `ALFRED_TRANSCRIBE_WORD_TIMESTAMPS` (default: `false`)
+- `ALFRED_TRANSCRIBE_VAD` (default: `true` - voice activity detection)
+- `ALFRED_TRANSCRIBE_CHUNK_SECONDS` (default: `30`)
+- `ALFRED_TRANSCRIBE_BATCH_SIZE` (default: `8`)
+- `ALFRED_TRANSCRIBE_MODEL_CACHE` (default: `.alfred-runtime/models/transcription`)
+
+### Supported Models
+
+- **Default**: `openai/whisper-large-v3-turbo` - fast, good quality
+- **Quality fallback**: `openai/whisper-large-v3` - slower, highest quality
+- **Alternative**: `nvidia/parakeet-tdt-0.6b-v3` - requires NeMo installation
+
+### API Endpoints
+
+- `POST /api/transcribe` - Upload audio file for transcription
+- `GET /api/transcription/health` - Check transcription service status
 
 ## Notes
 

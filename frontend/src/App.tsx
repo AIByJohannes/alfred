@@ -101,6 +101,13 @@ export default function App() {
 
     const [pendingImage, setPendingImage] = useState<string | null>(null);
     const [showCamera, setShowCamera] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
+    const [transcriptMeta, setTranscriptMeta] = useState<{
+        language: string;
+        duration: number | null;
+        filename: string;
+    } | null>(null);
+    const audioInputRef = useRef<HTMLInputElement | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const cameraStreamRef = useRef<MediaStream | null>(null);
@@ -160,6 +167,53 @@ export default function App() {
     function handleCloseCamera() {
         stopCameraStream();
         setShowCamera(false);
+    }
+
+    function handleOpenAudioPicker() {
+        audioInputRef.current?.click();
+    }
+
+    async function handleAudioFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsTranscribing(true);
+        setTranscriptMeta(null);
+        setStatusDetail("Transcribing audio...");
+
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const res = await fetch(apiUrl("/api/transcribe"), {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!res.ok) {
+                const err = await res.text();
+                throw new Error(err || "Transcription failed");
+            }
+
+            const data = await res.json();
+            setPrompt((prev) => (prev ? prev + "\n" : "") + data.text);
+            setTranscriptMeta({
+                language: data.language,
+                duration: data.duration,
+                filename: file.name,
+            });
+            setStatusDetail("Audio transcribed.");
+        } catch (err) {
+            console.error("Transcription error:", err);
+            setStatusDetail(
+                err instanceof Error ? err.message : "Transcription failed",
+            );
+        } finally {
+            setIsTranscribing(false);
+            if (audioInputRef.current) {
+                audioInputRef.current.value = "";
+            }
+        }
     }
 
     async function fetchSessions() {
@@ -710,28 +764,86 @@ export default function App() {
                                     </button>
                                 </div>
                             )}
+                            {transcriptMeta && (
+                                <div className="transcript-meta">
+                                    <span>
+                                        {transcriptMeta.filename}
+                                    </span>
+                                    <small>
+                                        {transcriptMeta.language}
+                                        {transcriptMeta.duration
+                                            ? ` • ${Math.round(transcriptMeta.duration)}s`
+                                            : ""}
+                                    </small>
+                                </div>
+                            )}
                         </div>
                         <div className="chat-input-actions">
+                            <input
+                                ref={audioInputRef}
+                                type="file"
+                                accept=".mp3,.wav,.flac,.m4a,.ogg,.webm,.wma,audio/*"
+                                onChange={handleAudioFileChange}
+                                style={{ display: "none" }}
+                            />
                             {mode === "chat" && (
-                                <button
-                                    type="button"
-                                    className="button button--ghost camera-button"
-                                    onClick={handleOpenCamera}
-                                    title="Take a photo"
-                                    style={{ padding: "0.4rem 0.8rem" }}
-                                >
-                                    <svg
-                                        width="18"
-                                        height="18"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
+                                <>
+                                    <button
+                                        type="button"
+                                        className="button button--ghost camera-button"
+                                        onClick={handleOpenAudioPicker}
+                                        title="Transcribe audio"
+                                        disabled={isTranscribing}
+                                        style={{ padding: "0.4rem 0.8rem" }}
                                     >
-                                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                                        <circle cx="12" cy="13" r="4" />
-                                    </svg>
-                                </button>
+                                        {isTranscribing ? (
+                                            <svg
+                                                width="18"
+                                                height="18"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                className="spinning"
+                                            >
+                                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                                            </svg>
+                                        ) : (
+                                            <svg
+                                                width="18"
+                                                height="18"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                            >
+                                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                                <line x1="12" y1="19" x2="12" y2="23" />
+                                                <line x1="8" y1="23" x2="16" y2="23" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="button button--ghost camera-button"
+                                        onClick={handleOpenCamera}
+                                        title="Take a photo"
+                                        style={{ padding: "0.4rem 0.8rem" }}
+                                    >
+                                        <svg
+                                            width="18"
+                                            height="18"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                        >
+                                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                            <circle cx="12" cy="13" r="4" />
+                                        </svg>
+                                    </button>
+                                </>
                             )}
                             <button
                                 type="button"

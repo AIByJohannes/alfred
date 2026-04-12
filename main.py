@@ -5,7 +5,7 @@ import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +19,8 @@ from models import (
     SessionDetail,
     SessionMeta,
     StreamRequest,
+    TranscriptResponse,
+    TranscriptionHealthResponse,
 )
 from prompts import SYSTEM_PROMPT
 from scripts.common import (
@@ -31,6 +33,7 @@ from scripts.common import (
 )
 from scripts.fs_agent import stream_filesystem_agent
 from scripts.chat import stream_chat
+from transcription.service import get_transcription_service
 
 app = FastAPI(
     title="Alfred Local Workbench API",
@@ -232,6 +235,69 @@ async def create_session(request: SessionCreateRequest) -> SessionMeta:
         prompt="",
         mode=normalized,
         timestamp=session_id.split("-")[0],
+    )
+
+
+@app.post("/api/transcribe", response_model=TranscriptResponse)
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    language: str | None = Form(None),
+    word_timestamps: bool = Form(False),
+    backend: str | None = Form(None),
+    model: str | None = Form(None),
+) -> TranscriptResponse:
+    if not file:
+        raise HTTPException(status_code=400, detail="No audio file provided")
+
+    allowed_extensions = {".mp3", ".wav", ".flac", ".m4a", ".ogg", ".webm", ".wma"}
+    file_ext = Path(file.filename or "").suffix.lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Supported: {', '.join(allowed_extensions)}",
+        )
+
+    audio_data = await file.read()
+    if len(audio_data) == 0:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
+    try:
+        service = get_transcription_service()
+        result = service.transcribe_file(
+            audio_data=audio_data,
+            filename=file.filename or "audio.wav",
+            language=language,
+            word_timestamps=word_timestamps,
+        )
+        return TranscriptResponse(
+            text=result.text,
+            language=result.language,
+            language_probability=result.language_probability,
+            duration=result.duration,
+            segments=result.segments,
+            words=result.words,
+            backend=result.backend,
+            model=result.model,
+            device=result.device,
+            warnings=result.warnings,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e) or "Transcription failed")
+
+
+@app.get("/api/transcription/health", response_model=TranscriptionHealthResponse)
+async def transcription_health() -> TranscriptionHealthResponse:
+    service = get_transcription_service()
+    health = service.health()
+    return TranscriptionHealthResponse(
+        available=health.available,
+        backend=health.backend,
+        model=health.model,
+        device=health.device,
+        cuda_available=health.cuda_available,
+        faster_whisper_installed=health.faster_whisper_installed,
+        nemo_installed=health.nemo_installed,
+        warnings=health.warnings,
     )
 
 

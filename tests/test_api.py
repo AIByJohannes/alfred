@@ -1,5 +1,6 @@
 import json
 import os
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,39 @@ def test_root_endpoint_includes_prompt_metadata():
     body = response.json()
     assert body["prompt_source"] == "prompts/SOUL.md"
     assert body["message"] == "Alfred local workbench is running"
+
+
+def test_transcribe_without_file():
+    response = client.post("/api/transcribe")
+
+    assert response.status_code == 422
+
+
+def test_transcribe_with_unsupported_file():
+    data = {"file": ("test.txt", b"fake", "text/plain")}
+    response = client.post("/api/transcribe", files=data)
+
+    assert response.status_code == 400
+    assert "Unsupported file type" in response.json()["detail"]
+
+
+def test_transcribe_with_empty_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    data = {"file": ("test.wav", b"", "audio/wav")}
+    response = client.post("/api/transcribe", files=data)
+
+    assert response.status_code == 400
+    assert "Empty audio file" in response.json()["detail"]
+
+
+def test_transcription_health_endpoint():
+    response = client.get("/api/transcription/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "available" in body
+    assert "backend" in body
+    assert "cuda_available" in body
 
 
 def test_append_message_persists_to_file(test_session):

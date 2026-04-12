@@ -1,0 +1,13 @@
+name: alfred-cuda
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pytorch
+  - torchaudio
+  - pytorch-cuda=12.6
+  - cudnn>=9,<10
+  - ffmpeg
