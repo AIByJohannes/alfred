@@ -51,10 +51,10 @@ graph TD
 
 ### Rust CLI dependency
 
-The Python filesystem wrapper assumes a non-interactive CLI contract in `../alfred-cli`:
+The Python filesystem wrapper invokes the non-interactive CLI contract in `../alfred-cli`:
 
-- Command: `alfred run`
+- Command: `alfred run --jsonl --mode <mode> --prompt <prompt> --cwd <cwd>`
 - Input: prompt, cwd, mode flags
-- Output: JSONL/ACP-aligned structured events over stdout
+- Output: JSONL/ACP-aligned structured events over stdout (`meta`, `delta`, `tool_request`, `tool_result`, `done`, `error`)
 
-The current TUI-only binary is not sufficient for that path; the CLI repo must expose this interface.
+The CLI contract is now implemented. The Rust binary serves both the interactive TUI and the scriptable run subcommand.

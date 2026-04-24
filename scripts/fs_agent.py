@@ -23,7 +23,7 @@ async def stream_filesystem_agent(
     backend: FsAgentBackend = FS_AGENT_BACKEND_AUTO,
 ) -> AsyncIterator[dict[str, object]]:
     selected_backend, _ = select_fs_agent_backend(backend)
-    meta_extra = {"mode": "fs-agent", "backend": selected_backend, "cwd": cwd}
+    meta_extra = {"mode": "fs-agent", "backend": selected_backend}
 
     if selected_backend == FS_AGENT_BACKEND_ALFRED:
         session_id, session_dir = ensure_session(session_id)
