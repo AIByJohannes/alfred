@@ -561,3 +561,18 @@ button {
 .spinning {
   animation: spin 1s linear infinite;
 }
+
+.camera-button.recording {
+    color: var(--danger);
+    animation: pulse-recording 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-recording {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.camera-button.recording:hover {
+    color: var(--danger);
+    box-shadow: 0 0 6px var(--danger);
+}

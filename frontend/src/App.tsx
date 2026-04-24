@@ -102,15 +102,18 @@ export default function App() {
     const [pendingImage, setPendingImage] = useState<string | null>(null);
     const [showCamera, setShowCamera] = useState(false);
     const [isTranscribing, setIsTranscribing] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
     const [transcriptMeta, setTranscriptMeta] = useState<{
         language: string;
         duration: number | null;
         filename: string;
     } | null>(null);
-    const audioInputRef = useRef<HTMLInputElement | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const cameraStreamRef = useRef<MediaStream | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const micStreamRef = useRef<MediaStream | null>(null);
+    const recordedChunksRef = useRef<Blob[]>([]);
 
     const chatListRef = useRef<HTMLDivElement | null>(null);
     const abortRef = useRef<AbortController | null>(null);
@@ -169,51 +172,95 @@ export default function App() {
         setShowCamera(false);
     }
 
-    function handleOpenAudioPicker() {
-        audioInputRef.current?.click();
-    }
-
-    async function handleAudioFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setIsTranscribing(true);
-        setTranscriptMeta(null);
-        setStatusDetail("Transcribing audio...");
-
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-
-            const res = await fetch(apiUrl("/api/transcribe"), {
-                method: "POST",
-                body: formData,
-            });
-
-            if (!res.ok) {
-                const err = await res.text();
-                throw new Error(err || "Transcription failed");
-            }
-
-            const data = await res.json();
-            setPrompt((prev) => (prev ? prev + "\n" : "") + data.text);
-            setTranscriptMeta({
-                language: data.language,
-                duration: data.duration,
-                filename: file.name,
-            });
-            setStatusDetail("Audio transcribed.");
-        } catch (err) {
-            console.error("Transcription error:", err);
-            setStatusDetail(
-                err instanceof Error ? err.message : "Transcription failed",
-            );
-        } finally {
-            setIsTranscribing(false);
-            if (audioInputRef.current) {
-                audioInputRef.current.value = "";
-            }
+    async function handleMic() {
+        if (isRecording) {
+            mediaRecorderRef.current?.stop();
+            return;
         }
+
+        let stream: MediaStream | null = null;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            console.error("Microphone access denied:", err);
+            setStatusDetail(
+                "Microphone access denied. Please allow microphone access in your browser.",
+            );
+            return;
+        }
+
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+            ? "audio/webm"
+            : MediaRecorder.isTypeSupported("audio/mp4")
+              ? "audio/mp4"
+              : "";
+
+        let recorder: MediaRecorder;
+        try {
+            recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        } catch (err) {
+            console.error("MediaRecorder not supported:", err);
+            stream.getTracks().forEach((t) => t.stop());
+            setStatusDetail("Audio recording not supported in this browser.");
+            return;
+        }
+
+        micStreamRef.current = stream;
+        recordedChunksRef.current = [];
+        mediaRecorderRef.current = recorder;
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    recordedChunksRef.current.push(e.data);
+                }
+            };
+
+            recorder.onstop = async () => {
+                const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
+                const file = new File([blob], "speech.webm", { type: "audio/webm" });
+
+                micStreamRef.current?.getTracks().forEach((t) => t.stop());
+                micStreamRef.current = null;
+                mediaRecorderRef.current = null;
+                setIsRecording(false);
+                setIsTranscribing(true);
+                setStatusDetail("Transcribing audio...");
+
+                try {
+                    const formData = new FormData();
+                    formData.append("file", file);
+
+                    const res = await fetch(apiUrl("/api/transcribe"), {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.text();
+                        throw new Error(err || "Transcription failed");
+                    }
+
+                    const data = await res.json();
+                    setPrompt((prev) => (prev ? prev + "\n" : "") + data.text);
+                    setTranscriptMeta({
+                        language: data.language,
+                        duration: data.duration,
+                        filename: "speech.webm",
+                    });
+                    setStatusDetail("Audio transcribed.");
+                } catch (err) {
+                    console.error("Transcription error:", err);
+                    setStatusDetail(
+                        err instanceof Error ? err.message : "Transcription failed",
+                    );
+                } finally {
+                    setIsTranscribing(false);
+                }
+            };
+
+            recorder.start();
+            setIsRecording(true);
+            setStatusDetail("Listening...");
     }
 
     async function fetchSessions() {
@@ -246,6 +293,12 @@ export default function App() {
         return () => {
             abortRef.current?.abort();
             stopCameraStream();
+            if (micStreamRef.current) {
+                micStreamRef.current.getTracks().forEach((t) => t.stop());
+                micStreamRef.current = null;
+            }
+            mediaRecorderRef.current?.stop();
+            mediaRecorderRef.current = null;
         };
     }, []);
 
@@ -778,25 +831,29 @@ export default function App() {
                                 </div>
                             )}
                         </div>
-                        <div className="chat-input-actions">
-                            <input
-                                ref={audioInputRef}
-                                type="file"
-                                accept=".mp3,.wav,.flac,.m4a,.ogg,.webm,.wma,audio/*"
-                                onChange={handleAudioFileChange}
-                                style={{ display: "none" }}
-                            />
+<div className="chat-input-actions">
                             {mode === "chat" && (
                                 <>
                                     <button
                                         type="button"
-                                        className="button button--ghost camera-button"
-                                        onClick={handleOpenAudioPicker}
-                                        title="Transcribe audio"
+                                        className={`button button--ghost camera-button ${isRecording ? "recording" : ""}`}
+                                        onClick={handleMic}
+                                        title={isRecording ? "Stop recording" : "Record voice"}
                                         disabled={isTranscribing}
                                         style={{ padding: "0.4rem 0.8rem" }}
                                     >
-                                        {isTranscribing ? (
+                                        {isRecording ? (
+                                            <svg
+                                                width="18"
+                                                height="18"
+                                                viewBox="0 0 24 24"
+                                                fill="currentColor"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                            >
+                                                <rect x="6" y="6" width="12" height="12" rx="2" />
+                                            </svg>
+                                        ) : isTranscribing ? (
                                             <svg
                                                 width="18"
                                                 height="18"

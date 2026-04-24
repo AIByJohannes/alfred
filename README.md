@@ -154,8 +154,8 @@ uv run --active python -c "import torch; print('CUDA:', torch.cuda.is_available(
 
 1. Open the Alfred web interface
 2. Click the microphone icon in the chat input area
-3. Upload an audio file (MP3, WAV, FLAC, M4A, OGG, WebM, WMA)
-4. The transcript appears in the input box, ready to send
+3. Speak — click the microphone icon again to stop
+4. The transcript appears in the input box, ready to send or edit
 
 ### Configuration
 
