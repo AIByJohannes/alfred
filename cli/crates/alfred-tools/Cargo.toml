@@ -1,0 +1,17 @@
+[package]
+name = "alfred-tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+camino.workspace = true
+dirs = "5.0"
+dunce.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+toml = "0.8"
+tracing.workspace = true
