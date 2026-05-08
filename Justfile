@@ -53,3 +53,21 @@ prod: build-frontend
 clean:
     rm -rf frontend/dist
     rm -rf .alfred-runtime
+
+cli-clean:
+    cargo clean --manifest-path cli/Cargo.toml
+
+cli-build:
+    cargo build --manifest-path cli/Cargo.toml --workspace
+
+cli-build-release:
+    cargo build --manifest-path cli/Cargo.toml --workspace --release
+
+cli-test:
+    cargo test --manifest-path cli/Cargo.toml --workspace
+
+cli-run:
+    cargo run --manifest-path cli/Cargo.toml -p alfred-cli
+
+cli-check:
+    cargo clippy --manifest-path cli/Cargo.toml --workspace --all-targets -- -D warnings

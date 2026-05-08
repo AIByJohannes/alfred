@@ -8,7 +8,7 @@
 ![Python](https://img.shields.io/badge/-Python%203.12-3776AB?style=flat&logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/-Alfred%20CLI-000000?style=flat&logo=rust&logoColor=white)
 
-Alfred is now a local-first Python orchestration repo. It provides a thin FastAPI bridge, a small React + Vite workbench, and Python wrapper scripts around the Rust `alfred` binary in `../alfred-cli`.
+Alfred is now a local-first Python orchestration repo. It provides a thin FastAPI bridge, a small React + Vite workbench, and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
 
 ## Layout
 
@@ -38,7 +38,7 @@ alfred/
 - Python 3.12+
 - `uv`
 - Node.js 20+
-- A built or installed `alfred` binary from `../alfred-cli`
+- A built or installed `alfred` binary from `cli/target/debug/alfred`
 - `OPENROUTER_API_KEY` for Python-side inference
 - Conda (for GPU/transcription features)
 
@@ -186,6 +186,6 @@ See `.env.example` for transcription settings:
 ## Notes
 
 - `prompts/SOUL.md` is the canonical system prompt source.
-- `scripts/fs_agent.py` assumes a future non-interactive `alfred run` contract in `../alfred-cli`.
+- `scripts/fs_agent.py` assumes a future non-interactive `alfred run` contract in `cli/`.
 - The health endpoint now reports both the available backends and the resolved default backend so the UI can show which one actually ran.
 - The old Spring Boot, Next.js, and Postgres microservice setup has been retired from this repo.

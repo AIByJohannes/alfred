@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository is a local-first orchestration layer around the Rust `alfred` binary in `../alfred-cli`.
+This repository is a local-first orchestration layer around the Rust `alfred` binary in `cli/`.
 
 - **React + Vite workbench**: single-page local UI for prompt submission and streamed output
 - **FastAPI bridge**: local-only API that relays requests to Python wrappers
@@ -18,7 +18,7 @@ graph TD
     UI[React + Vite Workbench]
     API[FastAPI Bridge]
     PY[Python Wrappers]
-    CLI[../alfred-cli / alfred run]
+    CLI[cli/ / alfred run]
     FS[(.alfred-runtime)]
     LLM[OpenRouter]
 
@@ -51,7 +51,7 @@ graph TD
 
 ### Rust CLI dependency
 
-The Python filesystem wrapper invokes the non-interactive CLI contract in `../alfred-cli`:
+The Python filesystem wrapper invokes the non-interactive CLI contract in `cli/`:
 
 - Command: `alfred run --jsonl --mode <mode> --prompt <prompt> --cwd <cwd>`
 - Input: prompt, cwd, mode flags

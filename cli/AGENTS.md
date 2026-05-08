@@ -24,9 +24,8 @@ The project is organized as a Rust workspace with the following crates:
 
 *   **Build Workspace:**
     ```bash
-    cargo build --workspace
-    # or via justfile
-    just build
+    # via justfile (from parent repo)
+    just cli-build
     ```
 
 *   **Run CLI (Local Development):**
@@ -50,6 +49,8 @@ The project is organized as a Rust workspace with the following crates:
 *   **Clean:**
     ```bash
     just clean
+    # or from parent repo:
+    just cli-clean
     ```
 
 ## Development Conventions

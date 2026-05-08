@@ -196,6 +196,7 @@ docker-compose.override.yml
 # OS
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 
 # Service-specific environment files
 .alfred-runtime/

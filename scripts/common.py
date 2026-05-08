@@ -109,7 +109,7 @@ def resolve_alfred_binary() -> Path | None:
     if configured := os.getenv("ALFRED_CLI_BIN"):
         candidates.append(Path(configured))
 
-    cli_root = (get_repo_root().parent / "alfred-cli").resolve()
+    cli_root = get_repo_root() / "cli"
     candidates.extend(
         [
             cli_root / "target" / "release" / "alfred",
@@ -137,7 +137,7 @@ def build_alfred_run_command(prompt: str, cwd: str | None = None) -> list[str]:
     binary = resolve_alfred_binary()
     if binary is None:
         raise FileNotFoundError(
-            "No scriptable `alfred` binary found. Set ALFRED_CLI_BIN or build ../alfred-cli."
+            "No scriptable `alfred` binary found. Set ALFRED_CLI_BIN or build cli/."
         )
 
     command = [
@@ -162,7 +162,7 @@ def select_fs_agent_backend(requested: FsAgentBackend) -> tuple[str, Path | None
         if requested == FS_AGENT_BACKEND_ALFRED:
             # maintain the same error text to keep the CLI contract consistent
             raise FileNotFoundError(
-                "No scriptable `alfred` binary found. Set ALFRED_CLI_BIN or build ../alfred-cli."
+                "No scriptable `alfred` binary found. Set ALFRED_CLI_BIN or build cli/."
             )
     return FS_AGENT_BACKEND_SMOL, None
 

@@ -37,5 +37,5 @@
 
 ## Configuration & Runtime Notes
 - Python-side inference expects `OPENROUTER_API_KEY` to be set.
-- Filesystem-agent execution expects a scriptable `alfred` binary to exist in `../alfred-cli`, `ALFRED_CLI_BIN`, or `PATH`.
+- Filesystem-agent execution expects a scriptable `alfred` binary to exist in `cli/`, `ALFRED_CLI_BIN`, or `PATH`.
 - Runtime session data is stored under `.alfred-runtime/`.
