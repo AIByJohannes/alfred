@@ -5,8 +5,8 @@
 ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/-React-61DAFB?style=flat&logo=react&logoColor=000000)
 ![Vite](https://img.shields.io/badge/-Vite-646CFF?style=flat&logo=vite&logoColor=white)
-![Python](https://img.shields.io/badge/-Python%203.12-3776AB?style=flat&logo=python&logoColor=white)
-![Rust](https://img.shields.io/badge/-Alfred%20CLI-000000?style=flat&logo=rust&logoColor=white)
+![Python](https://img.shields.io/badge/-Python-3776AB?style=flat&logo=python&logoColor=white)
+![Rust](https://img.shields.io/badge/-Rust-000000?style=flat&logo=rust&logoColor=white)
 
 Alfred is now a local-first Python orchestration repo. It provides a thin FastAPI bridge, a small React + Vite workbench, and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
 
