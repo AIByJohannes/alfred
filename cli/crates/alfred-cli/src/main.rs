@@ -19,6 +19,7 @@ use ratatui::Terminal;
 use tokio::sync::mpsc;
 use tokio::time;
 
+mod acp;
 mod markdown;
 
 // OneDark Theme Colors
@@ -187,9 +188,10 @@ async fn run_json_mode(prompt: &str, _mode: &str, _cwd: Option<PathBuf>) -> Resu
         .await
         .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string());
 
-    let mut messages = Vec::new();
-    messages.push(Message::new(Role::System, system_prompt));
-    messages.push(Message::new(Role::User, prompt.to_string()));
+    let messages = vec![
+        Message::new(Role::System, system_prompt),
+        Message::new(Role::User, prompt.to_string()),
+    ];
 
     let provider = OpenRouterProvider::new(api_key, "google/gemini-2.0-flash-001".to_string());
 
@@ -229,17 +231,40 @@ async fn run_json_mode(prompt: &str, _mode: &str, _cwd: Option<PathBuf>) -> Resu
     Ok(())
 }
 
-fn parse_args() -> Option<(String, String, Option<PathBuf>)> {
+fn parse_acp_args() -> Option<Option<PathBuf>> {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
+    if args.len() < 2 || args[1] != "acp" {
         return None;
     }
 
-    if args[1] == "run" {
-        let mut prompt = None;
-        let mut mode = "fs-agent".to_string();
-        let mut cwd = None;
+    let mut cwd: Option<PathBuf> = None;
+    let mut i = 2;
+    while i < args.len() {
+        if args[i] == "--cwd" && i + 1 < args.len() {
+            let p = PathBuf::from(&args[i + 1]);
+            if p.is_dir() {
+                cwd = Some(p);
+            }
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
 
+    Some(cwd)
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    if let Some(cwd) = parse_acp_args() {
+        return acp::run_acp(cwd).await;
+    }
+
+    let args: Vec<String> = env::args().collect();
+    if args.len() >= 3 && args[1] == "run" {
+        let mut prompt: Option<String> = None;
+        let mut mode = "fs-agent".to_string();
+        let mut cwd: Option<PathBuf> = None;
         let mut i = 2;
         while i < args.len() {
             match args[i].as_str() {
@@ -263,22 +288,12 @@ fn parse_args() -> Option<(String, String, Option<PathBuf>)> {
             }
             i += 1;
         }
-
         if let Some(p) = prompt {
-            return Some((p, mode, cwd));
+            if let Some(ref dir) = cwd {
+                std::env::set_current_dir(dir)?;
+            }
+            return run_json_mode(&p, &mode, cwd).await;
         }
-    }
-
-    None
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    if let Some((prompt, mode, cwd)) = parse_args() {
-        if let Some(ref dir) = cwd {
-            std::env::set_current_dir(dir)?;
-        }
-        return run_json_mode(&prompt, &mode, cwd).await;
     }
 
     tracing_subscriber::fmt()
@@ -491,13 +506,10 @@ fn spawn_agent(messages: Vec<Message>, tx: mpsc::Sender<AppEvent>, api_key: Stri
         match provider.respond(&messages).await {
             Ok(events) => {
                 for event in events {
-                    match event {
-                        AgentEvent::MessageDelta(content) => {
-                             if tx.send(AppEvent::AgentChunk(content)).await.is_err() {
-                                return;
-                            }
+                    if let AgentEvent::MessageDelta(content) = event {
+                        if tx.send(AppEvent::AgentChunk(content)).await.is_err() {
+                            return;
                         }
-                        _ => {}
                     }
                 }
             }

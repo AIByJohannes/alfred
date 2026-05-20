@@ -28,15 +28,33 @@ The project is structured as a Rust workspace with the following crates:
 ### Prerequisites
 
 *   Rust toolchain (stable)
-*   [just](https://github.com/casey/just) command runner
+*   [just](https://github.com/casey/just) command runner — all CLI recipes are run from the repo root via `just <recipe>` (e.g., `just cli-build`).
 
-### Installation
+### Building and Running
 
-If this is part of the `alfred` monorepo, build and install:
+Tasks are defined in the repo root `Justfile`. From the repo root:
 
 ```bash
-cargo install --path crates/alfred-cli --locked
+# Build workspace
+just cli-build
+
+# Run CLI in TUI mode
+just cli-run
+
+# Run tests
+just cli-test
+
+# Clean build artifacts
+just cli-clean
+
+# Install to Cargo bin
+just cli-install
+
+# Run Rust linter
+just cli-check
 ```
+
+You can also run `cargo` commands directly inside `cli/` for local development.
 
 To run locally:
 

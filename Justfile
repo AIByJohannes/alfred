@@ -71,3 +71,10 @@ cli-run:
 
 cli-check:
     cargo clippy --manifest-path cli/Cargo.toml --workspace --all-targets -- -D warnings
+
+cli-install:
+    cargo install --manifest-path cli/Cargo.toml --path cli/crates/alfred-cli --locked
+
+cli-update-prompts:
+    mkdir -p cli/prompts
+    curl -o cli/prompts/SOUL.md https://raw.githubusercontent.com/AIByJohannes/alfred/refs/heads/main/core/prompts/SOUL.md

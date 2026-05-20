@@ -7,10 +7,12 @@ This repository is a local-first orchestration layer around the Rust `alfred` bi
 - **React + Vite workbench**: single-page local UI for prompt submission and streamed output
 - **FastAPI bridge**: local-only API that relays requests to Python wrappers
 - **Python wrappers**: inference, filesystem-agent execution, and web-grounded helper scripts
-- **Rust `alfred` binary**: filesystem-capable agent runtime
+- **Rust `alfred` binary**: filesystem-capable agent runtime with TUI and ACP transport
 - **Filesystem runtime**: session logs, artifacts, and results under `.alfred-runtime/`
 
 ## Flow
+
+### Current State (JSONL Subprocess Bridge)
 
 ```mermaid
 graph TD
@@ -18,7 +20,7 @@ graph TD
     UI[React + Vite Workbench]
     API[FastAPI Bridge]
     PY[Python Wrappers]
-    CLI[cli/ / alfred run]
+    CLI[cli/ / alfred run --jsonl]
     FS[(.alfred-runtime)]
     LLM[OpenRouter]
 
@@ -32,29 +34,79 @@ graph TD
     API -->|SSE events| UI
 ```
 
+The current bridge invokes `alfred run --jsonl` as a subprocess. The Rust CLI emits JSONL lines (`meta`, `delta`, `tool_request`, `tool_result`, `done`, `error`) to stdout, which the Python wrapper normalizes into SSE events for the frontend.
+
+### ACP Transport Scaffold (`alfred acp`)
+
+```mermaid
+graph TD
+    Client[Python wrapper / any stdio client]
+    ACP_CLI[Rust ACP Server / alfred acp]
+    LLM[OpenRouter]
+
+    Client -->|ACP JSON envelopes over stdin| ACP_CLI
+    ACP_CLI -->|ACP JSON envelopes over stdout| Client
+    ACP_CLI -->|LLM inference| LLM
+```
+
+The `alfred acp` subcommand implements an Agent Communication Protocol (ACP) server over stdio. It reads JSON envelopes from stdin and writes event envelopes to stdout.
+
+**Client → Server**
+
+```
+{ "type": "session.start", "session_id": "<uuid>", "cwd": "<path>" }
+{ "type": "prompt.send",   "prompt": "<text>", "mode": "<mode>" }
+{ "type": "session.cancel" }
+{ "type": "session.close" }
+```
+
+**Server → Client**
+
+```
+{ "type": "meta",          "session_id": "...", "cwd": "...", "backend": "...", "transport": "acp", "version": "1" }
+{ "type": "delta",         "content": "<text>" }
+{ "type": "tool_request",  "name": "<tool>", "arguments": {...} }
+{ "type": "tool_result",   "name": "<tool>", "output": "...", "is_error": false }
+{ "type": "artifact",      "label": "...", "path": "...", "url": null }
+{ "type": "done",          "result": "completed" }
+{ "type": "error",         "message": "...", "exit_code": null }
+```
+
+The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py` still uses the legacy `--jsonl` subprocess mode). Integration is tracked as follow-up work.
+
 ## Responsibilities
 
-### FastAPI bridge
+### FastAPI bridge (`main.py`)
 
-- Exposes `/health`, `/api/infer/stream`, and `/api/fs-agent/stream`
+- Exposes `/health`, `/api/chat/stream`, `/api/infer/stream`, and `/api/fs-agent/stream`
 - Owns no business logic beyond request validation and SSE relaying
-- Reports `alfred` binary availability to the frontend
 
-### Python wrapper layer
+### Python wrapper layer (`scripts/`)
 
-- Creates session directories and persists request/event/result files
-- Runs Python-side inference via `smolagents`
-- Runs quick research helpers via Python
-- Invokes `alfred run` for filesystem-capable work
-- Normalizes outputs into `meta`, `delta`, `artifact`, `done`, and `error` events
-- Determines the filesystem-agent backend (`alfred-cli` or `smolagents`) per request, defaulting to the CLI but falling back to `smolagents` when the binary is missing and including the chosen backend in the metadata stream.
+- `common.py`: session management, JSONL helpers, SSE formatting, binary resolution
+- `fs_agent.py`: runs filesystem-agent requests via `alfred run --jsonl` subprocess, fallback to `smolagents`
+- `chat.py`: Python-side inference via `smolagents` / `llm`
+- `research.py`: web-grounded research helpers
 
-### Rust CLI dependency
+### Rust ACP server (`cli/crates/alfred-cli/src/acp.rs`)
 
-The Python filesystem wrapper invokes the non-interactive CLI contract in `cli/`:
+- Handles `alfred acp` CLI entrypoint: stdio server mode
+- Session lifecycle: `session.start` → `prompt.send` → streaming events → `session.close`
+- Reuses `alfred-core` for agent execution (agent loop, provider calls)
+- Emits ACP-compliant JSON envelopes to stdout; diagnostics to stderr
 
-- Command: `alfred run --jsonl --mode <mode> --prompt <prompt> --cwd <cwd>`
-- Input: prompt, cwd, mode flags
-- Output: JSONL/ACP-aligned structured events over stdout (`meta`, `delta`, `tool_request`, `tool_result`, `done`, `error`)
+### Rust CLI binary (`cli/`)
 
-The CLI contract is now implemented. The Rust binary serves both the interactive TUI and the scriptable run subcommand.
+- `alfred` — TUI chat mode (default)
+- `alfred run --jsonl --prompt <text>` — legacy scriptable mode
+- `alfred acp` — ACP stdio transport (scaffold, not yet integrated)
+
+## Environment Variables
+
+| Variable               | Default                              | Purpose                                      |
+|------------------------|--------------------------------------|----------------------------------------------|
+| `ALFRED_CLI_BIN`       | auto-resolve from `cli/target/`      | Path to `alfred` binary                      |
+| `ALFRED_RUNTIME_ROOT`  | `.alfred-runtime`                    | Root for all session/event storage           |
+| `ALFRED_AGENT_MODE`    | `fs-agent`                           | Default agent mode                           |
+| `CORS_ORIGINS`         | `http://localhost:5173,...`          | Allowed frontend origins                     |
+| `OPENROUTER_API_KEY`   | *(required)*                         | LLM provider key                             |

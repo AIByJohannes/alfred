@@ -200,6 +200,7 @@ Thumbs.db
 
 # Service-specific environment files
 .alfred-runtime/
+.codex
 .env.local
 app/.env
 app/.env.local
