@@ -3,18 +3,17 @@
 **A**lgorithmic **L**ife-form **F**eigning **R**eal **E**motional **D**epth
 
 ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
-![React](https://img.shields.io/badge/-React-61DAFB?style=flat&logo=react&logoColor=000000)
-![Vite](https://img.shields.io/badge/-Vite-646CFF?style=flat&logo=vite&logoColor=white)
+![Streamlit](https://img.shields.io/badge/-Streamlit-FF4B4B?style=flat&logo=streamlit&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat&logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/-Rust-000000?style=flat&logo=rust&logoColor=white)
 
-Alfred is now a local-first Python orchestration repo. It provides a thin FastAPI bridge, a small React + Vite workbench, and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
+Alfred is a local-first Python orchestration repo. It provides a thin FastAPI bridge, a Streamlit workbench, and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
 
 ## Layout
 
 ```text
 alfred/
-├── frontend/     # React + Vite workbench
+├── frontend/     # Streamlit workbench
 ├── llm/          # Python-side inference wrapper
 ├── prompts/      # Canonical system prompts
 ├── scripts/      # Python wrappers for inference, fs-agent, research
@@ -28,8 +27,8 @@ alfred/
 
 - Python handles local orchestration, inference calls, web-grounded helper scripts, and filesystem session state.
 - The Rust `alfred` binary handles filesystem-capable agent execution.
-- Filesystem-agent calls now support a `backend` selector (`auto`, `alfred-cli`, `smolagents`); the default `auto` prefers `alfred-cli` and falls back to `smolagents` when the binary is unavailable.
-- FastAPI exists only as a local bridge for the frontend.
+- Filesystem-agent calls support a `backend` selector (`auto`, `alfred-cli`, `smolagents`); the default `auto` prefers `alfred-cli` and falls back to `smolagents` when the binary is unavailable.
+- FastAPI exists as an external API bridge; the Streamlit workbench imports Python wrappers directly.
 - Runtime state is stored under `.alfred-runtime/`.
 - Database support is optional and not part of the default path.
 
@@ -37,7 +36,6 @@ alfred/
 
 - Python 3.12+
 - `uv`
-- Node.js 20+
 - A built or installed `alfred` binary from `cli/target/debug/alfred`
 - `OPENROUTER_API_KEY` for Python-side inference
 - Conda (for GPU/transcription features)
@@ -45,15 +43,14 @@ alfred/
 ## Quick Start
 
 ```bash
-# One-time setup: creates Conda env with CUDA, installs Python + frontend deps
+# One-time setup: creates Conda env with CUDA, installs Python deps
 just setup
 
-# Run both backend and frontend
-just dev
+# Run the Streamlit workbench (calls Python wrappers directly)
+uv run streamlit run frontend/app.py
 
-# Or run them separately:
-just backend   # API on http://127.0.0.1:8000
-just frontend # UI on http://127.0.0.1:5173
+# Or run backend API separately (for external clients)
+uv run uvicorn main:app --reload        # API on http://127.0.0.1:8000
 ```
 
 ## Backend Setup (Manual)
@@ -80,16 +77,15 @@ uv run uvicorn main:app --reload
 
 Both POST routes return SSE streams with event types `meta`, `delta`, `artifact`, `done`, and `error`.
 
-## Frontend Setup
+## Frontend
+
+The Streamlit workbench imports Python wrappers directly (no API proxy needed):
 
 ```bash
-cd frontend
-npm install
-npm run dev
+uv run streamlit run frontend/app.py
 ```
 
-The Vite workbench runs on `http://127.0.0.1:5173`.
-If the backend is already running, `just frontend` is the browser entrypoint.
+It runs on `http://localhost:8501` by default.
 
 ## CLI Wrapper Scripts
 
@@ -107,23 +103,7 @@ See [`.env.example`](.env.example) for backend settings. The most important vari
 - `ALFRED_CLI_BIN`
 - `ALFRED_RUNTIME_ROOT`
 - `ALFRED_AGENT_MODE`
-- `CORS_ORIGINS` (optional, defaults to `http://localhost:5173,http://127.0.0.1:5173`)
-
-## Production
-
-Build the frontend:
-
-```bash
-cd frontend && npm run build
-```
-
-Run the backend - it automatically serves the built frontend from `frontend/dist`:
-
-```bash
-uv run uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-The API and UI are served from the same origin, avoiding CORS issues.
+- `CORS_ORIGINS` (optional, defaults to `http://localhost:8501,http://127.0.0.1:8501`)
 
 ## Transcription (Audio to Text)
 

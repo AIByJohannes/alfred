@@ -169,19 +169,8 @@ cython_debug/
 .conda/
 *.conda
 
-# Node.js / Frontend (frontend/)
-node_modules/
-.next/
-.nuxt/
-.cache/
-out/
-.vercel/
-.turbo/
-*.tsbuildinfo
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# Streamlit
+.streamlit/
 
 # Docker
 *.dockerignore
@@ -204,6 +193,4 @@ Thumbs.db
 .env.local
 app/.env
 app/.env.local
-frontend/.env
 frontend/.env.local
-frontend/.env.*.local

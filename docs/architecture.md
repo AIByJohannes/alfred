@@ -4,8 +4,8 @@
 
 This repository is a local-first orchestration layer around the Rust `alfred` binary in `cli/`.
 
-- **React + Vite workbench**: single-page local UI for prompt submission and streamed output
-- **FastAPI bridge**: local-only API that relays requests to Python wrappers
+- **Streamlit workbench**: local UI for prompt submission and streamed output; imports Python wrappers directly
+- **FastAPI bridge**: API for external clients and tests
 - **Python wrappers**: inference, filesystem-agent execution, and web-grounded helper scripts
 - **Rust `alfred` binary**: filesystem-capable agent runtime with TUI and ACP transport
 - **Filesystem runtime**: session logs, artifacts, and results under `.alfred-runtime/`
@@ -17,24 +17,24 @@ This repository is a local-first orchestration layer around the Rust `alfred` bi
 ```mermaid
 graph TD
     User[User]
-    UI[React + Vite Workbench]
-    API[FastAPI Bridge]
+    UI[Streamlit Workbench]
     PY[Python Wrappers]
     CLI[cli/ / alfred run --jsonl]
     FS[(.alfred-runtime)]
     LLM[OpenRouter]
+    API[FastAPI Bridge]
 
     User --> UI
-    UI -->|SSE requests| API
-    API --> PY
+    UI -->|direct calls| PY
     PY -->|inference| LLM
     PY -->|fs-agent| CLI
     PY --> FS
     CLI --> FS
-    API -->|SSE events| UI
+    User -->|alternative| API
+    API --> PY
 ```
 
-The current bridge invokes `alfred run --jsonl` as a subprocess. The Rust CLI emits JSONL lines (`meta`, `delta`, `tool_request`, `tool_result`, `done`, `error`) to stdout, which the Python wrapper normalizes into SSE events for the frontend.
+The Streamlit workbench imports and calls Python wrapper functions directly, consuming the same async event streams that the FastAPI bridge exposes over SSE for external clients.
 
 ### ACP Transport Scaffold (`alfred acp`)
 
@@ -108,5 +108,5 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 | `ALFRED_CLI_BIN`       | auto-resolve from `cli/target/`      | Path to `alfred` binary                      |
 | `ALFRED_RUNTIME_ROOT`  | `.alfred-runtime`                    | Root for all session/event storage           |
 | `ALFRED_AGENT_MODE`    | `fs-agent`                           | Default agent mode                           |
-| `CORS_ORIGINS`         | `http://localhost:5173,...`          | Allowed frontend origins                     |
+| `CORS_ORIGINS`         | `http://localhost:8501,...`          | Allowed frontend origins                     |
 | `OPENROUTER_API_KEY`   | *(required)*                         | LLM provider key                             |

@@ -5,10 +5,9 @@ import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
 
 from models import (
     FS_AGENT_BACKEND_ALFRED,
@@ -19,10 +18,11 @@ from models import (
     SessionDetail,
     SessionMeta,
     StreamRequest,
-    TranscriptResponse,
     TranscriptionHealthResponse,
+    TranscriptResponse,
 )
 from prompts import SYSTEM_PROMPT
+from scripts.chat import stream_chat
 from scripts.common import (
     ensure_session,
     format_sse_event,
@@ -32,16 +32,15 @@ from scripts.common import (
     write_json,
 )
 from scripts.fs_agent import stream_filesystem_agent
-from scripts.chat import stream_chat
 from transcription.service import get_transcription_service
 
 app = FastAPI(
     title="Alfred Local Workbench API",
-    description="Thin local bridge between the Vite workbench and Python/Rust runners.",
+    description="Thin local bridge between the Streamlit workbench and Python/Rust runners.",
     version="1.0.0",
 )
 
-_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:8501,http://127.0.0.1:8501")
 _cors_list = [o.strip() for o in _cors_origins.split(",") if o.strip()]
 
 app.add_middleware(
@@ -299,11 +298,6 @@ async def transcription_health() -> TranscriptionHealthResponse:
         nemo_installed=health.nemo_installed,
         warnings=health.warnings,
     )
-
-
-_frontend_dist = Path(__file__).parent / "frontend" / "dist"
-if _frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="static")
 
 
 if __name__ == "__main__":

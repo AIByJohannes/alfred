@@ -10,23 +10,20 @@ setup-conda:
 setup-python:
     conda run -n {{conda_env}} uv sync --active --extra transcribe
 
-setup-frontend:
-    cd frontend && npm install
-
-setup: setup-conda setup-python setup-frontend
+setup: setup-conda setup-python
 
 backend:
     conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --reload
 
 frontend:
-    cd frontend && npm run dev
+    conda run -n {{conda_env}} --live-stream uv run --active streamlit run frontend/app.py --server.port 8501
 
 dev:
     #!/usr/bin/env bash
     set -eu -o pipefail -o posix
     trap 'kill $(jobs -p) 2>/dev/null' EXIT INT TERM
     conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --reload &
-    cd frontend && npm run dev
+    conda run -n {{conda_env}} --live-stream uv run --active streamlit run frontend/app.py --server.port 8501
 
 test:
     conda run -n {{conda_env}} --live-stream uv run --active pytest -q
@@ -36,22 +33,14 @@ test-verbose:
 
 lint:
     conda run -n {{conda_env}} --live-stream uv run --active ruff check .
-    cd frontend && npm run build
 
 typecheck:
     conda run -n {{conda_env}} --live-stream uv run --active mypy .
-    cd frontend && npx tsc -b
 
-build: build-frontend
-
-build-frontend:
-    cd frontend && npm run build
-
-prod: build-frontend
+prod:
     conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --host 0.0.0.0 --port 8000
 
 clean:
-    rm -rf frontend/dist
     rm -rf .alfred-runtime
 
 cli-clean:

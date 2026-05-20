@@ -10,14 +10,14 @@
 - `scripts/` contains Python wrapper entrypoints for inference, filesystem-agent runs, and research helpers.
 - `llm/` wraps Python-side inference via `smolagents`.
 - `prompts/` stores reusable prompt strings.
-- `frontend/` contains the React + Vite workbench.
+- `frontend/` contains the Streamlit workbench.
 - `tests/` contains backend tests.
 
 ## Build, Test, and Development Commands
 - `uv sync` installs Python dependencies.
 - `uv run uvicorn main:app --reload` starts the FastAPI bridge at `http://127.0.0.1:8000`.
 - `pytest -q` runs the backend test suite.
-- `cd frontend && npm install && npm run dev` starts the Vite workbench.
+- `uv run streamlit run frontend/app.py` starts the Streamlit workbench.
 
 ## Coding Style & Naming Conventions
 - Python uses 4-space indentation and straightforward, imperative function names.
