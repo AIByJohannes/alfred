@@ -16,14 +16,14 @@ backend:
     conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --reload
 
 frontend:
-    conda run -n {{conda_env}} --live-stream uv run --active streamlit run frontend/app.py --server.port 8501
+    conda run -n {{conda_env}} --live-stream uv run --active shiny run frontend/app.py --port 8501 --reload
 
 dev:
     #!/usr/bin/env bash
     set -eu -o pipefail -o posix
     trap 'kill $(jobs -p) 2>/dev/null' EXIT INT TERM
     conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --reload &
-    conda run -n {{conda_env}} --live-stream uv run --active streamlit run frontend/app.py --server.port 8501
+    conda run -n {{conda_env}} --live-stream uv run --active shiny run frontend/app.py --port 8501 --reload
 
 test:
     conda run -n {{conda_env}} --live-stream uv run --active pytest -q

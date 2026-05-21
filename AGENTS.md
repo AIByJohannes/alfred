@@ -10,14 +10,14 @@
 - `scripts/` contains Python wrapper entrypoints for inference, filesystem-agent runs, and research helpers.
 - `llm/` wraps Python-side inference via `smolagents`.
 - `prompts/` stores reusable prompt strings.
-- `frontend/` contains the Streamlit workbench.
+- `frontend/` contains the PyShiny workbench.
 - `tests/` contains backend tests.
 
 ## Build, Test, and Development Commands
 - `uv sync` installs Python dependencies.
 - `uv run uvicorn main:app --reload` starts the FastAPI bridge at `http://127.0.0.1:8000`.
 - `pytest -q` runs the backend test suite.
-- `uv run streamlit run frontend/app.py` starts the Streamlit workbench.
+- `uv run shiny run frontend/app.py --port 8501` starts the PyShiny workbench.
 
 ## Coding Style & Naming Conventions
 - Python uses 4-space indentation and straightforward, imperative function names.

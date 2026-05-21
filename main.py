@@ -36,7 +36,7 @@ from transcription.service import get_transcription_service
 
 app = FastAPI(
     title="Alfred Local Workbench API",
-    description="Thin local bridge between the Streamlit workbench and Python/Rust runners.",
+    description="Thin local bridge between the PyShiny workbench and Python/Rust runners.",
     version="1.0.0",
 )
 

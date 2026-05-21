@@ -18,7 +18,7 @@ dependencies = [
     "ddgs>=9.5.4,<10",
     "smolagents[openai]>=1.0.0,<2",
     "python-multipart>=0.0.6,<1",
-    "streamlit>=1.42.0,<2",
+    "shiny>=1.0.0",
 ]
 
 [project.optional-dependencies]

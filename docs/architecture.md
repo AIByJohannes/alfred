@@ -4,7 +4,7 @@
 
 This repository is a local-first orchestration layer around the Rust `alfred` binary in `cli/`.
 
-- **Streamlit workbench**: local UI for prompt submission and streamed output; imports Python wrappers directly
+- **PyShiny workbench**: local UI for prompt submission and streamed output; imports Python wrappers directly
 - **FastAPI bridge**: API for external clients and tests
 - **Python wrappers**: inference, filesystem-agent execution, and web-grounded helper scripts
 - **Rust `alfred` binary**: filesystem-capable agent runtime with TUI and ACP transport
@@ -17,7 +17,7 @@ This repository is a local-first orchestration layer around the Rust `alfred` bi
 ```mermaid
 graph TD
     User[User]
-    UI[Streamlit Workbench]
+    UI[PyShiny Workbench]
     PY[Python Wrappers]
     CLI[cli/ / alfred run --jsonl]
     FS[(.alfred-runtime)]
@@ -34,7 +34,7 @@ graph TD
     API --> PY
 ```
 
-The Streamlit workbench imports and calls Python wrapper functions directly, consuming the same async event streams that the FastAPI bridge exposes over SSE for external clients.
+The PyShiny workbench imports and calls Python wrapper functions directly, consuming the same async event streams that the FastAPI bridge exposes over SSE for external clients.
 
 ### ACP Transport Scaffold (`alfred acp`)
 

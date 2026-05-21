@@ -3,17 +3,17 @@
 **A**lgorithmic **L**ife-form **F**eigning **R**eal **E**motional **D**epth
 
 ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
-![Streamlit](https://img.shields.io/badge/-Streamlit-FF4B4B?style=flat&logo=streamlit&logoColor=white)
+![PyShiny](https://img.shields.io/badge/-PyShiny-2176FF?style=flat&logo=shiny&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat&logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/-Rust-000000?style=flat&logo=rust&logoColor=white)
 
-Alfred is a local-first Python orchestration repo. It provides a thin FastAPI bridge, a Streamlit workbench, and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
+Alfred is a local-first Python orchestration repo. It provides a thin FastAPI bridge, a PyShiny workbench, and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
 
 ## Layout
 
 ```text
 alfred/
-├── frontend/     # Streamlit workbench
+├── frontend/     # PyShiny workbench
 ├── llm/          # Python-side inference wrapper
 ├── prompts/      # Canonical system prompts
 ├── scripts/      # Python wrappers for inference, fs-agent, research
@@ -28,7 +28,7 @@ alfred/
 - Python handles local orchestration, inference calls, web-grounded helper scripts, and filesystem session state.
 - The Rust `alfred` binary handles filesystem-capable agent execution.
 - Filesystem-agent calls support a `backend` selector (`auto`, `alfred-cli`, `smolagents`); the default `auto` prefers `alfred-cli` and falls back to `smolagents` when the binary is unavailable.
-- FastAPI exists as an external API bridge; the Streamlit workbench imports Python wrappers directly.
+- FastAPI exists as an external API bridge; the PyShiny workbench imports Python wrappers directly.
 - Runtime state is stored under `.alfred-runtime/`.
 - Database support is optional and not part of the default path.
 
@@ -46,8 +46,8 @@ alfred/
 # One-time setup: creates Conda env with CUDA, installs Python deps
 just setup
 
-# Run the Streamlit workbench (calls Python wrappers directly)
-uv run streamlit run frontend/app.py
+# Run the PyShiny workbench (calls Python wrappers directly)
+uv run shiny run frontend/app.py --port 8501
 
 # Or run backend API separately (for external clients)
 uv run uvicorn main:app --reload        # API on http://127.0.0.1:8000
@@ -79,10 +79,10 @@ Both POST routes return SSE streams with event types `meta`, `delta`, `artifact`
 
 ## Frontend
 
-The Streamlit workbench imports Python wrappers directly (no API proxy needed):
+The PyShiny workbench imports Python wrappers directly (no API proxy needed):
 
 ```bash
-uv run streamlit run frontend/app.py
+uv run shiny run frontend/app.py --port 8501
 ```
 
 It runs on `http://localhost:8501` by default.
