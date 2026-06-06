@@ -12,7 +12,7 @@ Alfred is a local-first Python orchestration repo. It provides a PyShiny workben
 
 ```text
 alfred/
-├── frontend/     # PyShiny workbench
+├── app/          # PyShiny workbench
 ├── llm/          # Python-side inference wrapper
 ├── prompts/      # Canonical system prompts
 ├── scripts/      # Python wrappers for inference, fs-agent, research
@@ -45,15 +45,15 @@ alfred/
 just setup
 
 # Run the PyShiny workbench (calls Python wrappers directly)
-just frontend
+just app
 ```
 
-## Frontend
+## App
 
 The PyShiny workbench imports Python wrappers directly (no API proxy needed):
 
 ```bash
-uv run shiny run frontend/app.py --port 8501
+uv run shiny run app/app.py --port 8501
 ```
 
 It runs on `http://localhost:8501` by default.

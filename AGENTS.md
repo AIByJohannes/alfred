@@ -9,13 +9,13 @@
 - `scripts/` contains Python wrapper entrypoints for inference, filesystem-agent runs, and research helpers.
 - `llm/` wraps Python-side inference via `smolagents`.
 - `prompts/` stores reusable prompt strings.
-- `frontend/` contains the PyShiny workbench.
+- `app/` contains the PyShiny workbench.
 - `tests/` contains tests.
 
 ## Build, Test, and Development Commands
 - `uv sync` installs Python dependencies.
 - `pytest -q` runs the test suite.
-- `uv run shiny run frontend/app.py --port 8501` starts the PyShiny workbench.
+- `uv run shiny run app/app.py --port 8501` starts the PyShiny workbench.
 
 ## Coding Style & Naming Conventions
 - Python uses 4-space indentation and straightforward, imperative function names.

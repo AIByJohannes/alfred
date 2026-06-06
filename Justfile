@@ -12,10 +12,10 @@ setup-python:
 
 setup: setup-conda setup-python
 
-frontend:
-    conda run -n {{conda_env}} --live-stream uv run --active shiny run frontend/app.py --port 8501 --reload
+app:
+    conda run -n {{conda_env}} --live-stream uv run --active shiny run app/app.py --port 8501 --reload
 
-dev: frontend
+dev: app
 
 test:
     conda run -n {{conda_env}} --live-stream uv run --active pytest -q
