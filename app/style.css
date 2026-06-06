@@ -291,6 +291,23 @@ body {
   filter: brightness(1.1);
 }
 
+.btn-agent-custom {
+  background: var(--success) !important;
+  color: var(--bg) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 0.6rem 0.8rem !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 6px -1px rgba(152, 195, 121, 0.4) !important;
+}
+
+.btn-agent-custom:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 10px 15px -3px rgba(152, 195, 121, 0.5) !important;
+  filter: brightness(1.1);
+}
+
 .btn-secondary-custom {
   background-color: var(--panel) !important;
   color: var(--text) !important;

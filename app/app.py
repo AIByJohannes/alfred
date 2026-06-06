@@ -69,29 +69,26 @@ app_ui = ui.page_sidebar(
             "new_chat",
             "New Chat",
             class_="btn-primary-custom w-100",
-            icon=ui.HTML('<i class="fas fa-plus-circle"></i> ')
+            icon=ui.HTML('<i class="fas fa-comment"></i> '),
+            style="margin-bottom: 0.5rem;"
         ),
-        ui.hr(),
-
-        ui.h4(
-            "Execution Mode",
-            style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem; color: #abb2bf;"
-        ),
-        ui.input_radio_buttons(
-            "mode",
-            label=None,
-            choices={"chat": "Chat", "fs-agent": "Agent"},
-            selected="chat"
+        ui.input_action_button(
+            "new_agent_chat",
+            "New Agent Chat",
+            class_="btn-agent-custom w-100",
+            icon=ui.HTML('<i class="fas fa-robot"></i> ')
         ),
 
         ui.output_ui("agent_settings_ui"),
-        ui.hr(),
 
         ui.output_ui("artifacts_ui"),
 
-        ui.h4(
-            "History",
-            style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem; color: #abb2bf;"
+        ui.div(
+            ui.h4(
+                "History",
+                style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem; color: #abb2bf; margin-top: 0 !important;"
+            ),
+            style="margin-top: 1rem;"
         ),
         ui.output_ui("history_ui"),
 
@@ -214,12 +211,13 @@ def server(input, output, session):
     pending_image = reactive.Value(None)
     pending_image_name = reactive.Value(None)
     running = reactive.Value(False)
+    chat_mode = reactive.Value("chat")
 
     # Dynamically render Agent configuration card when in agent mode
     @output
     @render.ui
     def agent_settings_ui():
-        if input.mode() == "fs-agent":
+        if chat_mode() == "fs-agent":
             return ui.div(
                 ui.input_text(
                     "cwd",
@@ -237,7 +235,7 @@ def server(input, output, session):
                     },
                     selected="auto"
                 ),
-                style="margin-top: 1rem; border-top: 1px solid #181a1f; padding-top: 1rem;"
+                style="margin-top: 1.25rem;"
             )
         return None
 
@@ -271,7 +269,7 @@ def server(input, output, session):
                       "font-size: 0.95rem; color: #abb2bf;"
             ),
             *art_uis,
-            style="margin-top: 1rem; border-top: 1px solid #181a1f; padding-top: 1rem;"
+            style="margin-top: 1.25rem;"
         )
 
     # Dynamic historical session listing with load interaction
@@ -390,22 +388,39 @@ def server(input, output, session):
             new_msgs.append({"role": "user", "content": user_prompt, "image_base64": image_b64})
             new_msgs.append({"role": "assistant", "content": assistant_content, "status": "done"})
 
+        loaded_mode = meta.get("mode", "chat")
+        if loaded_mode == "inference":
+            loaded_mode = "chat"
+        chat_mode.set(loaded_mode)
+
         messages.set(new_msgs)
         artifacts.set(new_artifacts)
         session_id.set(sid)
         status.set("idle")
-        status_detail.set("Session loaded.")
+        mode_name = "Agent" if loaded_mode == "fs-agent" else "Chat"
+        status_detail.set(f"{mode_name} session loaded.")
         resolved_backend.set(None)
 
-    # Click handler for creating clean slate conversations
+    # Click handler for creating clean slate conversations (Chat mode)
     @reactive.effect
     @reactive.event(input.new_chat)
     def _handle_new_chat():
+        chat_mode.set("chat")
+        clear_state_for_new_session("Chat session ready.")
+
+    # Click handler for creating clean slate conversations (Agent mode)
+    @reactive.effect
+    @reactive.event(input.new_agent_chat)
+    def _handle_new_agent_chat():
+        chat_mode.set("fs-agent")
+        clear_state_for_new_session("Agent session ready.")
+
+    def clear_state_for_new_session(msg: str):
         messages.set([])
         session_id.set(None)
         artifacts.set([])
         status.set("idle")
-        status_detail.set("Standing by.")
+        status_detail.set(msg)
         resolved_backend.set(None)
         pending_image.set(None)
         pending_image_name.set(None)
@@ -539,8 +554,7 @@ def server(input, output, session):
                             "Greetings. I am Alfred, your Algorithmic Life-form Feigning "
                             "Real Emotional Depth.\n\n"
                             "I can assist you in Chat mode or run terminal instructions in "
-                            "Agent mode. Select your mode on the left and submit a query "
-                            "to begin."
+                            "Agent mode. Click **New Chat** or **New Agent Chat** on the left to start."
                         ),
                         class_="message-bubble"
                     ),
@@ -632,7 +646,7 @@ def server(input, output, session):
                 msgs[-1]["content"] += text_delta
                 messages.set(msgs)
 
-        run_mode = input.mode()
+        run_mode = chat_mode()
         run_session_id = session_id()
 
         # Read agent configurations safely
