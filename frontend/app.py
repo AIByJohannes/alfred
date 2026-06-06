@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import html
 import json
 from pathlib import Path
 from typing import Any
@@ -75,7 +76,7 @@ app_ui = ui.page_sidebar(
 
         ui.h4(
             "Execution Mode",
-            style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem; color: #cbd5e1;"
+            style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem; color: #abb2bf;"
         ),
         ui.input_radio_buttons(
             "mode",
@@ -91,7 +92,7 @@ app_ui = ui.page_sidebar(
 
         ui.h4(
             "History",
-            style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem; color: #cbd5e1;"
+            style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem; color: #abb2bf;"
         ),
         ui.output_ui("history_ui"),
 
@@ -237,7 +238,7 @@ def server(input, output, session):
                     },
                     selected="auto"
                 ),
-                style="margin-top: 1rem; border-top: 1px solid #334155; padding-top: 1rem;"
+                style="margin-top: 1rem; border-top: 1px solid #181a1f; padding-top: 1rem;"
             )
         return None
 
@@ -258,7 +259,7 @@ def server(input, output, session):
                     ui.span(f"📦 {label}", style="font-weight: 500;"),
                     ui.span(
                         Path(path).name if path != "pending" else "pending",
-                        style="font-size: 0.75rem; color: #94a3b8; word-break: break-all; "
+                        style="font-size: 0.75rem; color: #7f848e; word-break: break-all; "
                               "margin-top: 2px;"
                     ),
                     class_="artifact-card"
@@ -268,10 +269,10 @@ def server(input, output, session):
             ui.h4(
                 "Artifacts",
                 style="font-weight: 600; margin-bottom: 0.75rem; "
-                      "font-size: 0.95rem; color: #cbd5e1;"
+                      "font-size: 0.95rem; color: #abb2bf;"
             ),
             *art_uis,
-            style="margin-top: 1rem; border-top: 1px solid #334155; padding-top: 1rem;"
+            style="margin-top: 1rem; border-top: 1px solid #181a1f; padding-top: 1rem;"
         )
 
     # Dynamic historical session listing with load interaction
@@ -282,7 +283,7 @@ def server(input, output, session):
         if not sessions:
             return ui.p(
                 "No sessions yet.",
-                style="font-size: 0.85rem; color: #64748b; font-style: italic;"
+                style="font-size: 0.85rem; color: #7f848e; font-style: italic;"
             )
 
         history_elements = []
@@ -295,11 +296,12 @@ def server(input, output, session):
             is_active = s["id"] == session_id()
             active_class = "active" if is_active else ""
 
-            # Simple custom HTML button utilizing Shiny.setInputValue for lightweight state updates
+            safe_id = json.dumps(s["id"])
+            safe_lbl = html.escape(lbl)
             btn_html = ui.HTML(
                 f'<button onclick="Shiny.setInputValue('
-                f'\'selected_session\', \'{s["id"]}\', {{priority: \'event\'}})" '
-                f'class="btn-history-item {active_class}">{lbl}</button>'
+                f'\'selected_session\', {safe_id}, {{priority: \'event\'}})" '
+                f'class="btn-history-item {active_class}">{safe_lbl}</button>'
             )
             history_elements.append(btn_html)
 
@@ -490,9 +492,9 @@ def server(input, output, session):
         if pending_image():
             return ui.span(
                 f"📷 {pending_image_name() or 'Image ready'}",
-                style="color: #34d399; font-size: 0.85rem; padding: 0.25rem 0.5rem; "
-                      "background-color: rgba(52, 211, 153, 0.1); border-radius: 4px; "
-                      "border: 1px solid rgba(52, 211, 153, 0.3);"
+                style="color: #98c379; font-size: 0.85rem; padding: 0.25rem 0.5rem; "
+                      "background-color: rgba(152, 195, 121, 0.1); border-radius: 4px; "
+                      "border: 1px solid rgba(152, 195, 121, 0.3);"
             )
         return None
 
