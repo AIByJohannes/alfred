@@ -64,7 +64,6 @@ app_ui = ui.page_sidebar(
     # Left Sidebar Section
     ui.sidebar(
         ui.h2("A.L.F.R.E.D."),
-        ui.div("Algorithmic Life-form Feigning Real Emotional Depth", class_="caption"),
 
         ui.input_action_button(
             "new_chat",
