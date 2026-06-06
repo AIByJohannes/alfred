@@ -65,6 +65,15 @@ body {
   font-style: italic;
 }
 
+.sidebar .shiny-input-radiogroup label,
+.sidebar .form-check-label {
+  color: var(--text) !important;
+}
+
+.sidebar .form-check-input {
+  border-color: var(--text-muted);
+}
+
 .main-layout {
   display: flex;
   flex-direction: column;
