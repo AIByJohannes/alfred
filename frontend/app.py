@@ -164,9 +164,7 @@ app_ui = ui.page_sidebar(
     ),
 
     # Head & Stylesheet Injections
-    title="Alfred Workbench",
-    fillable=True,
-    header=ui.head_content(
+    ui.head_content(
         ui.HTML('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">'),
         ui.tags.style(Path(__file__).parent.joinpath("style.css").read_text()),
         ui.tags.script("""
@@ -196,7 +194,10 @@ app_ui = ui.page_sidebar(
                 });
             });
         """)
-    )
+    ),
+
+    window_title="Alfred Workbench",
+    fillable=True,
 )
 
 
