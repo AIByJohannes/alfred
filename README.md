@@ -2,12 +2,11 @@
 
 **A**lgorithmic **L**ife-form **F**eigning **R**eal **E**motional **D**epth
 
-![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
 ![PyShiny](https://img.shields.io/badge/-PyShiny-2176FF?style=flat&logo=shiny&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat&logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/-Rust-000000?style=flat&logo=rust&logoColor=white)
 
-Alfred is a local-first Python orchestration repo. It provides a thin FastAPI bridge, a PyShiny workbench, and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
+Alfred is a local-first Python orchestration repo. It provides a PyShiny workbench and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
 
 ## Layout
 
@@ -17,9 +16,8 @@ alfred/
 ├── llm/          # Python-side inference wrapper
 ├── prompts/      # Canonical system prompts
 ├── scripts/      # Python wrappers for inference, fs-agent, research
-├── tests/        # Backend tests
-├── main.py       # FastAPI bridge for the local workbench
-├── models.py     # API request/response models
+├── tests/        # Tests
+├── models.py     # Data models
 └── pyproject.toml
 ```
 
@@ -28,7 +26,7 @@ alfred/
 - Python handles local orchestration, inference calls, web-grounded helper scripts, and filesystem session state.
 - The Rust `alfred` binary handles filesystem-capable agent execution.
 - Filesystem-agent calls support a `backend` selector (`auto`, `alfred-cli`, `smolagents`); the default `auto` prefers `alfred-cli` and falls back to `smolagents` when the binary is unavailable.
-- FastAPI exists as an external API bridge; the PyShiny workbench imports Python wrappers directly.
+- The PyShiny workbench imports Python wrappers directly.
 - Runtime state is stored under `.alfred-runtime/`.
 - Database support is optional and not part of the default path.
 
@@ -47,35 +45,8 @@ alfred/
 just setup
 
 # Run the PyShiny workbench (calls Python wrappers directly)
-uv run shiny run frontend/app.py --port 8501
-
-# Or run backend API separately (for external clients)
-uv run uvicorn main:app --reload        # API on http://127.0.0.1:8000
+just frontend
 ```
-
-## Backend Setup (Manual)
-
-If you don't use `just`:
-
-```bash
-# GPU environment (recommended for transcription)
-conda env create -f environment.cuda.yml
-conda activate alfred-cuda
-uv sync --extra transcribe
-
-# Or without GPU
-uv sync
-
-uv run uvicorn main:app --reload
-```
-
-### FastAPI Endpoints
-
-- `GET /health`
-- `POST /api/infer/stream`
-- `POST /api/fs-agent/stream`
-
-Both POST routes return SSE streams with event types `meta`, `delta`, `artifact`, `done`, and `error`.
 
 ## Frontend
 
@@ -97,13 +68,12 @@ python -m scripts.research "ACP protocol Python examples"
 
 ## Environment
 
-See [`.env.example`](.env.example) for backend settings. The most important variables are:
+See [`.env.example`](.env.example) for settings. The most important variables are:
 
 - `OPENROUTER_API_KEY`
 - `ALFRED_CLI_BIN`
 - `ALFRED_RUNTIME_ROOT`
 - `ALFRED_AGENT_MODE`
-- `CORS_ORIGINS` (optional, defaults to `http://localhost:8501,http://127.0.0.1:8501`)
 
 ## Transcription (Audio to Text)
 
@@ -158,14 +128,8 @@ See `.env.example` for transcription settings:
 - **Quality fallback**: `openai/whisper-large-v3` - slower, highest quality
 - **Alternative**: `nvidia/parakeet-tdt-0.6b-v3` - requires NeMo installation
 
-### API Endpoints
-
-- `POST /api/transcribe` - Upload audio file for transcription
-- `GET /api/transcription/health` - Check transcription service status
-
 ## Notes
 
 - `prompts/SOUL.md` is the canonical system prompt source.
 - `scripts/fs_agent.py` assumes a future non-interactive `alfred run` contract in `cli/`.
-- The health endpoint now reports both the available backends and the resolved default backend so the UI can show which one actually ran.
 - The old Spring Boot, Next.js, and Postgres microservice setup has been retired from this repo.

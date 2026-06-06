@@ -1,7 +1,7 @@
 [project]
 name = "alfred-local-workbench"
 version = "1.0.0"
-description = "Local-first Python orchestrator and FastAPI bridge for Alfred CLI"
+description = "Local-first Python orchestrator and PyShiny workbench for Alfred CLI"
 authors = [{ name = "Johannes", email = "johannes@aibyjohannes.com" }]
 requires-python = ">=3.12,<4"
 readme = "README.md"
@@ -12,12 +12,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "fastapi>=0.115.0,<0.116",
-    "uvicorn[standard]>=0.32.0,<0.33",
     "pydantic>=2.9.0,<3",
     "ddgs>=9.5.4,<10",
     "smolagents[openai]>=1.0.0,<2",
-    "python-multipart>=0.0.6,<1",
     "shiny>=1.6.0",
 ]
 

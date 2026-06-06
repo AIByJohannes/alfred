@@ -1,6 +1,6 @@
 # Alfred Workbench
 
-PyShiny frontend for the local Alfred FastAPI bridge.
+PyShiny frontend for the local Alfred workbench.
 
 ## Development
 
@@ -13,7 +13,6 @@ The PyShiny app imports and calls Python wrappers directly (no API proxy needed 
 ## Configuration
 
 - PyShiny runs on port 8501 by default.
-- FastAPI (if running separately) serves on port 8000.
 
 ## Compatibility
 

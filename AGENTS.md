@@ -6,17 +6,15 @@
 - **Reference**: See `prompts/SOUL.md` for the single source of truth regarding the system prompt.
 
 ## Project Structure & Module Organization
-- `main.py` contains the thin FastAPI bridge for the local workbench.
 - `scripts/` contains Python wrapper entrypoints for inference, filesystem-agent runs, and research helpers.
 - `llm/` wraps Python-side inference via `smolagents`.
 - `prompts/` stores reusable prompt strings.
 - `frontend/` contains the PyShiny workbench.
-- `tests/` contains backend tests.
+- `tests/` contains tests.
 
 ## Build, Test, and Development Commands
 - `uv sync` installs Python dependencies.
-- `uv run uvicorn main:app --reload` starts the FastAPI bridge at `http://127.0.0.1:8000`.
-- `pytest -q` runs the backend test suite.
+- `pytest -q` runs the test suite.
 - `uv run shiny run frontend/app.py --port 8501` starts the PyShiny workbench.
 
 ## Coding Style & Naming Conventions

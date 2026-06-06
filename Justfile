@@ -12,18 +12,10 @@ setup-python:
 
 setup: setup-conda setup-python
 
-backend:
-    conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --reload
-
 frontend:
     conda run -n {{conda_env}} --live-stream uv run --active shiny run frontend/app.py --port 8501 --reload
 
-dev:
-    #!/usr/bin/env bash
-    set -eu -o pipefail -o posix
-    trap 'kill $(jobs -p) 2>/dev/null' EXIT INT TERM
-    conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --reload &
-    conda run -n {{conda_env}} --live-stream uv run --active shiny run frontend/app.py --port 8501 --reload
+dev: frontend
 
 test:
     conda run -n {{conda_env}} --live-stream uv run --active pytest -q
@@ -36,9 +28,6 @@ lint:
 
 typecheck:
     conda run -n {{conda_env}} --live-stream uv run --active mypy .
-
-prod:
-    conda run -n {{conda_env}} --live-stream uv run --active uvicorn main:app --host 0.0.0.0 --port 8000
 
 clean:
     rm -rf .alfred-runtime

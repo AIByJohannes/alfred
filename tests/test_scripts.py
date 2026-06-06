@@ -1,12 +1,15 @@
+import json
 from pathlib import Path
 
 import pytest
 
 from models import FS_AGENT_BACKEND_ALFRED, FS_AGENT_BACKEND_SMOL
 from scripts.common import (
+    append_message,
     build_alfred_run_command,
     ensure_session,
     format_sse_event,
+    get_messages_path,
     parse_cli_event,
     select_fs_agent_backend,
     stream_llm_prompt,
@@ -110,3 +113,21 @@ async def test_stream_llm_prompt_records_events(monkeypatch, tmp_path):
     assert events[2]["type"] == "done"
     session_id = events[0]["session_id"]
     assert (tmp_path / "sessions" / session_id / "request.json").exists()
+
+
+def test_append_message_persists_to_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    session_id, session_dir = ensure_session()
+    messages_path = get_messages_path(session_dir)
+
+    assert not messages_path.exists()
+
+    append_message(session_dir, "user", "Hello Alfred")
+    assert messages_path.exists()
+
+    with open(messages_path) as f:
+        msgs = [json.loads(line) for line in f if line.strip()]
+
+    assert len(msgs) == 1
+    assert msgs[0]["role"] == "user"
+    assert msgs[0]["content"] == "Hello Alfred"

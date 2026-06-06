@@ -5,7 +5,6 @@
 This repository is a local-first orchestration layer around the Rust `alfred` binary in `cli/`.
 
 - **PyShiny workbench**: local UI for prompt submission and streamed output; imports Python wrappers directly
-- **FastAPI bridge**: API for external clients and tests
 - **Python wrappers**: inference, filesystem-agent execution, and web-grounded helper scripts
 - **Rust `alfred` binary**: filesystem-capable agent runtime with TUI and ACP transport
 - **Filesystem runtime**: session logs, artifacts, and results under `.alfred-runtime/`
@@ -22,7 +21,6 @@ graph TD
     CLI[cli/ / alfred run --jsonl]
     FS[(.alfred-runtime)]
     LLM[OpenRouter]
-    API[FastAPI Bridge]
 
     User --> UI
     UI -->|direct calls| PY
@@ -30,11 +28,9 @@ graph TD
     PY -->|fs-agent| CLI
     PY --> FS
     CLI --> FS
-    User -->|alternative| API
-    API --> PY
 ```
 
-The PyShiny workbench imports and calls Python wrapper functions directly, consuming the same async event streams that the FastAPI bridge exposes over SSE for external clients.
+The PyShiny workbench imports and calls Python wrapper functions directly.
 
 ### ACP Transport Scaffold (`alfred acp`)
 
@@ -76,11 +72,6 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 
 ## Responsibilities
 
-### FastAPI bridge (`main.py`)
-
-- Exposes `/health`, `/api/chat/stream`, `/api/infer/stream`, and `/api/fs-agent/stream`
-- Owns no business logic beyond request validation and SSE relaying
-
 ### Python wrapper layer (`scripts/`)
 
 - `common.py`: session management, JSONL helpers, SSE formatting, binary resolution
@@ -108,5 +99,4 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 | `ALFRED_CLI_BIN`       | auto-resolve from `cli/target/`      | Path to `alfred` binary                      |
 | `ALFRED_RUNTIME_ROOT`  | `.alfred-runtime`                    | Root for all session/event storage           |
 | `ALFRED_AGENT_MODE`    | `fs-agent`                           | Default agent mode                           |
-| `CORS_ORIGINS`         | `http://localhost:8501,...`          | Allowed frontend origins                     |
 | `OPENROUTER_API_KEY`   | *(required)*                         | LLM provider key                             |
