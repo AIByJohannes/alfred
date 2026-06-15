@@ -13,7 +13,7 @@ class StreamRequest(BaseModel):
     prompt: str = Field(min_length=1)
     session_id: str | None = None
     image_base64: str | None = Field(
-        default=None, description="Base64-encoded image for chat mode only"
+        default=None, description="Base64-encoded image attachment"
     )
 
 
@@ -42,7 +42,6 @@ class HealthResponse(BaseModel):
 class SessionMeta(BaseModel):
     id: str
     prompt: str
-    mode: str
     timestamp: str
 
 
@@ -58,10 +57,6 @@ class SessionDetail(BaseModel):
     events: list[dict[str, object]]
     image_base64: str | None = None
     messages: list[Message] | None = None
-
-
-class SessionCreateRequest(BaseModel):
-    mode: str = "chat"
 
 
 class TranscriptWord(BaseModel):

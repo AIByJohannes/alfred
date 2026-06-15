@@ -61,7 +61,6 @@ It runs on `http://localhost:8501` by default.
 ## CLI Wrapper Scripts
 
 ```bash
-python -m scripts.infer "Summarize this repo"
 python -m scripts.fs_agent "Refactor the logging layer" --cwd /path/to/repo
 python -m scripts.research "ACP protocol Python examples"
 ```
@@ -73,7 +72,6 @@ See [`.env.example`](.env.example) for settings. The most important variables ar
 - `OPENROUTER_API_KEY`
 - `ALFRED_CLI_BIN`
 - `ALFRED_RUNTIME_ROOT`
-- `ALFRED_AGENT_MODE`
 
 ## Transcription (Audio to Text)
 

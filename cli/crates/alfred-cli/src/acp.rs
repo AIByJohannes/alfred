@@ -19,7 +19,7 @@ enum AcpClientMessage {
         cwd: Option<String>,
     },
     #[serde(rename = "prompt.send")]
-    PromptSend { prompt: String, mode: Option<String> },
+    PromptSend { prompt: String },
     #[serde(rename = "session.cancel")]
     SessionCancel,
     #[serde(rename = "session.close")]
@@ -113,13 +113,14 @@ pub async fn run_acp(cwd: Option<PathBuf>) -> Result<()> {
                     .filter(|p| p.is_dir())
                     .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
+                let model = std::env::var("OPENROUTER_MODEL")
+                    .ok()
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
                 session = Some(ActiveSession {
                     session_id,
                     cwd: resolved_cwd,
-                    provider: OpenRouterProvider::new(
-                        api_key.clone(),
-                        "google/gemini-2.0-flash-001".to_string(),
-                    ),
+                    provider: OpenRouterProvider::new(api_key.clone(), model),
                 });
 
                 if let Some(ref s) = session {
@@ -134,9 +135,9 @@ pub async fn run_acp(cwd: Option<PathBuf>) -> Result<()> {
                 }
             }
 
-            AcpClientMessage::PromptSend { prompt, mode } => {
+            AcpClientMessage::PromptSend { prompt } => {
                 if let Some(ref mut s) = session {
-                    run_agent_loop(&mut *s, &prompt, mode.as_deref()).await;
+                    run_agent_loop(&mut *s, &prompt).await;
                 } else {
                     AcpServerEvent::Error {
                         message: "No active session. Send session.start first.".to_string(),
@@ -171,7 +172,7 @@ struct ActiveSession {
     provider: OpenRouterProvider,
 }
 
-async fn run_agent_loop(session: &mut ActiveSession, prompt: &str, _mode: Option<&str>) {
+async fn run_agent_loop(session: &mut ActiveSession, prompt: &str) {
     let system_prompt = alfred_tools::config::load_system_prompt()
         .await
         .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string());

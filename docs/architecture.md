@@ -51,7 +51,7 @@ The `alfred acp` subcommand implements an Agent Communication Protocol (ACP) ser
 
 ```
 { "type": "session.start", "session_id": "<uuid>", "cwd": "<path>" }
-{ "type": "prompt.send",   "prompt": "<text>", "mode": "<mode>" }
+{ "type": "prompt.send",   "prompt": "<text>" }
 { "type": "session.cancel" }
 { "type": "session.close" }
 ```
@@ -76,7 +76,7 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 
 - `common.py`: session management, JSONL helpers, SSE formatting, binary resolution
 - `fs_agent.py`: runs filesystem-agent requests via `alfred run --jsonl` subprocess, fallback to `smolagents`
-- `chat.py`: Python-side inference via `smolagents` / `llm`
+- `chat.py`: Python-side inference via `smolagents` / `llm` (kept for compatibility; primary agent path is `fs_agent.py`)
 - `research.py`: web-grounded research helpers
 
 ### Rust ACP server (`cli/crates/alfred-cli/src/acp.rs`)
@@ -88,8 +88,8 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 
 ### Rust CLI binary (`cli/`)
 
-- `alfred` — TUI chat mode (default)
-- `alfred run --jsonl --prompt <text>` — legacy scriptable mode
+- `alfred` — TUI (default)
+- `alfred run --jsonl --prompt <text>` — scriptable agent execution (cwd optional)
 - `alfred acp` — ACP stdio transport (scaffold, not yet integrated)
 
 ## Environment Variables
@@ -98,5 +98,5 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 |------------------------|--------------------------------------|----------------------------------------------|
 | `ALFRED_CLI_BIN`       | auto-resolve from `cli/target/`      | Path to `alfred` binary                      |
 | `ALFRED_RUNTIME_ROOT`  | `.alfred-runtime`                    | Root for all session/event storage           |
-| `ALFRED_AGENT_MODE`    | `fs-agent`                           | Default agent mode                           |
+
 | `OPENROUTER_API_KEY`   | *(required)*                         | LLM provider key                             |

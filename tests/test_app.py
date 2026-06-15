@@ -1,5 +1,5 @@
 def test_app_ui_imports():
-    from app.app import app_ui, server, App
+    from app.app import app_ui, server
 
     assert app_ui is not None
     assert callable(server)

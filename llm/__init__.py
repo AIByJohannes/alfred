@@ -17,7 +17,7 @@ class LLMEngine:
     ):
         self.base_url = base_url or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
-        self.model_id = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+        self.model_id = model or os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash")
 
         if not self.api_key:
             raise RuntimeError(

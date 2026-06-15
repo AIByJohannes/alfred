@@ -49,7 +49,8 @@ def test_build_alfred_run_command_prefers_env_override(tmp_path, monkeypatch):
 
     command = build_alfred_run_command("ship it", cwd="/tmp/repo")
 
-    assert command[:2] == [str(binary), "run"]
+    assert command[:3] == [str(binary), "run", "--jsonl"]
+    assert command[3:5] == ["--prompt", "ship it"]
     assert command[-2:] == ["--cwd", "/tmp/repo"]
 
 
@@ -58,6 +59,19 @@ def test_build_alfred_run_command_errors_when_missing(monkeypatch):
 
     with pytest.raises(FileNotFoundError):
         build_alfred_run_command("ship it")
+
+
+def test_build_alfred_run_command_omits_cwd_when_none(tmp_path, monkeypatch):
+    binary = tmp_path / "alfred"
+    binary.write_text("#!/bin/sh\n", encoding="utf-8")
+    binary.chmod(0o755)
+    monkeypatch.setenv("ALFRED_CLI_BIN", str(binary))
+
+    command = build_alfred_run_command("do it")
+
+    assert command[:3] == [str(binary), "run", "--jsonl"]
+    assert command[3:5] == ["--prompt", "do it"]
+    assert "--cwd" not in command
 
 
 def test_select_fs_agent_backend_auto_prefers_cli(monkeypatch):
@@ -79,11 +93,16 @@ def test_select_fs_agent_backend_auto_falls_back_when_missing(monkeypatch):
     assert resolved is None
 
 
-def test_select_fs_agent_backend_requires_cli(monkeypatch):
+def test_select_fs_agent_backend_explicit_alfred_falls_back_gracefully_when_missing(monkeypatch):
+    # With only-agent mode, explicit "alfred-cli" must not hard-fail when the
+    # binary is absent; it falls back to smolagents so the agent path always works.
+    # cwd remains optional.
     monkeypatch.setattr("scripts.common.resolve_alfred_binary", lambda: None)
 
-    with pytest.raises(FileNotFoundError):
-        select_fs_agent_backend(FS_AGENT_BACKEND_ALFRED)
+    backend, resolved = select_fs_agent_backend(FS_AGENT_BACKEND_ALFRED)
+
+    assert backend == FS_AGENT_BACKEND_SMOL
+    assert resolved is None
 
 
 @pytest.mark.asyncio
@@ -101,7 +120,6 @@ async def test_stream_llm_prompt_records_events(monkeypatch, tmp_path):
     async for payload in stream_llm_prompt(
         "test prompt",
         request_payload={"type": "fs-agent", "backend": "smolagents"},
-        mode="fs-agent",
         meta_extra={"backend": "smolagents"},
     ):
         events.append(payload)

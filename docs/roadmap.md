@@ -7,7 +7,7 @@ The repo has been cut over from a backend microservice project into a local-firs
 ## Completed
 
 1. (DONE) Finish the non-interactive `alfred run` contract in `cli/`
-   - Added `alfred run --jsonl --mode fs-agent --prompt <prompt> --cwd <cwd>`
+    - Added `alfred run --jsonl --prompt <prompt>` (cwd optional)
    - Outputs JSONL events (`meta`, `delta`, `tool_request`, `tool_result`, `done`, `error`)
    - Falls back to smolagents when CLI binary is unavailable
 

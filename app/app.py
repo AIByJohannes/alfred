@@ -9,7 +9,6 @@ from typing import Any
 
 from shiny import App, reactive, render, ui
 
-from scripts.chat import stream_chat
 from scripts.common import get_sessions_root
 from scripts.fs_agent import stream_filesystem_agent
 
@@ -47,9 +46,6 @@ def get_sessions() -> list[dict]:
                 {
                     "id": d.name,
                     "prompt": data.get("prompt", ""),
-                    "mode": (
-                        "chat" if data.get("mode") == "inference" else data.get("mode", "unknown")
-                    ),
                     "timestamp": d.name.split("-")[0],
                 }
             )
@@ -66,17 +62,10 @@ app_ui = ui.page_sidebar(
         ui.h2("A.L.F.R.E.D."),
 
         ui.input_action_button(
-            "new_chat",
-            "New Chat",
+            "new_session",
+            "New Session",
             class_="btn-primary-custom w-100",
-            icon=ui.HTML('<i class="fas fa-comment"></i> '),
-            style="margin-bottom: 0.5rem;"
-        ),
-        ui.input_action_button(
-            "new_agent_chat",
-            "New Agent Chat",
-            class_="btn-agent-custom w-100",
-            icon=ui.HTML('<i class="fas fa-robot"></i> ')
+            icon=ui.HTML('<i class="fas fa-plus"></i> ')
         ),
 
         ui.output_ui("agent_settings_ui"),
@@ -86,7 +75,10 @@ app_ui = ui.page_sidebar(
         ui.div(
             ui.h4(
                 "History",
-                style="font-weight: 600; margin-bottom: 0.75rem; font-size: 0.95rem; color: #abb2bf; margin-top: 0 !important;"
+                style=(
+                    "font-weight: 600; margin-bottom: 0.75rem; "
+                    "font-size: 0.95rem; color: #abb2bf; margin-top: 0 !important;"
+                ),
             ),
             style="margin-top: 1rem;"
         ),
@@ -214,33 +206,30 @@ def server(input, output, session):
     pending_image = reactive.Value(None)
     pending_image_name = reactive.Value(None)
     running = reactive.Value(False)
-    chat_mode = reactive.Value("chat")
 
-    # Dynamically render Agent configuration card when in agent mode
+    # Agent configuration (cwd optional)
     @output
     @render.ui
     def agent_settings_ui():
-        if chat_mode() == "fs-agent":
-            return ui.div(
-                ui.input_text(
-                    "cwd",
-                    "Working Directory",
-                    placeholder="/path/to/repo",
-                    value=""
-                ),
-                ui.input_select(
-                    "fs_backend",
-                    "Backend Fallback",
-                    choices={
-                        "auto": "auto",
-                        "alfred-cli": "alfred-cli",
-                        "smolagents": "smolagents"
-                    },
-                    selected="auto"
-                ),
-                class_="agent-settings-card"
-            )
-        return None
+        return ui.div(
+            ui.input_text(
+                "cwd",
+                "Working Directory (optional)",
+                placeholder="/path/to/repo",
+                value=""
+            ),
+            ui.input_select(
+                "fs_backend",
+                "Backend Fallback",
+                choices={
+                    "auto": "auto",
+                    "alfred-cli": "alfred-cli",
+                    "smolagents": "smolagents"
+                },
+                selected="auto"
+            ),
+            class_="agent-settings-card"
+        )
 
     # Dynamically render list of artifacts generated in the active session
     @output
@@ -291,7 +280,7 @@ def server(input, output, session):
             lbl = s["prompt"][:40] or "Empty session"
             if len(s["prompt"]) > 40:
                 lbl += "..."
-            lbl += f"\n{s['mode']} • {s['timestamp']}"
+            lbl += f"\n{s['timestamp']}"
 
             is_active = s["id"] == session_id()
             active_class = "active" if is_active else ""
@@ -391,32 +380,18 @@ def server(input, output, session):
             new_msgs.append({"role": "user", "content": user_prompt, "image_base64": image_b64})
             new_msgs.append({"role": "assistant", "content": assistant_content, "status": "done"})
 
-        loaded_mode = meta.get("mode", "chat")
-        if loaded_mode == "inference":
-            loaded_mode = "chat"
-        chat_mode.set(loaded_mode)
-
         messages.set(new_msgs)
         artifacts.set(new_artifacts)
         session_id.set(sid)
         status.set("idle")
-        mode_name = "Agent" if loaded_mode == "fs-agent" else "Chat"
-        status_detail.set(f"{mode_name} session loaded.")
+        status_detail.set("Session loaded.")
         resolved_backend.set(None)
 
-    # Click handler for creating clean slate conversations (Chat mode)
+    # Click handler for creating clean slate conversations
     @reactive.effect
-    @reactive.event(input.new_chat)
-    def _handle_new_chat():
-        chat_mode.set("chat")
-        clear_state_for_new_session("Chat session ready.")
-
-    # Click handler for creating clean slate conversations (Agent mode)
-    @reactive.effect
-    @reactive.event(input.new_agent_chat)
-    def _handle_new_agent_chat():
-        chat_mode.set("fs-agent")
-        clear_state_for_new_session("Agent session ready.")
+    @reactive.event(input.new_session)
+    def _handle_new_session():
+        clear_state_for_new_session("Session ready.")
 
     def clear_state_for_new_session(msg: str):
         messages.set([])
@@ -556,8 +531,7 @@ def server(input, output, session):
                             "**Alfred Standing By.**\n\n"
                             "Greetings. I am Alfred, your Algorithmic Life-form Feigning "
                             "Real Emotional Depth.\n\n"
-                            "I can assist you in Chat mode or run terminal instructions in "
-                            "Agent mode. Click **New Chat** or **New Agent Chat** on the left to start."
+                            "Agent ready. Provide a prompt (cwd optional on left). "
                         ),
                         class_="message-bubble"
                     ),
@@ -649,32 +623,26 @@ def server(input, output, session):
                 msgs[-1]["content"] += text_delta
                 messages.set(msgs)
 
-        run_mode = chat_mode()
         run_session_id = session_id()
 
-        # Read agent configurations safely
+        # Read agent configurations (cwd optional)
         run_cwd = ""
         run_backend = "auto"
-        if run_mode == "fs-agent":
-            try:
-                run_cwd = input.cwd()
-            except Exception:
-                pass
-            try:
-                run_backend = input.fs_backend()
-            except Exception:
-                pass
+        try:
+            run_cwd = input.cwd()
+        except Exception:
+            pass
+        try:
+            run_backend = input.fs_backend()
+        except Exception:
+            pass
 
-        # Select target generator
-        if run_mode == "chat":
-            gen = stream_chat(prompt_text, session_id=run_session_id, image_base64=img_b64)
-        else:
-            gen = stream_filesystem_agent(
-                prompt_text,
-                cwd=run_cwd or None,
-                session_id=run_session_id,
-                backend=run_backend,
-            )
+        gen = stream_filesystem_agent(
+            prompt_text,
+            cwd=run_cwd or None,
+            session_id=run_session_id,
+            backend=run_backend,
+        )
 
         content = ""
         new_artifacts = []

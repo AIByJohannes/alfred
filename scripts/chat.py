@@ -17,7 +17,6 @@ async def stream_chat(
         prompt,
         session_id=session_id,
         request_payload=request_payload,
-        mode="chat",
         image_base64=image_base64,
     ):
         yield payload

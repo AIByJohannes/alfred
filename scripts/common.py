@@ -24,7 +24,6 @@ from models import (
 )
 
 DEFAULT_RUNTIME_ROOT = ".alfred-runtime"
-DEFAULT_AGENT_MODE = "fs-agent"
 
 
 def get_repo_root() -> Path:
@@ -133,19 +132,21 @@ def shutil_which(binary: str) -> str | None:
     return None
 
 
-def build_alfred_run_command(prompt: str, cwd: str | None = None) -> list[str]:
-    binary = resolve_alfred_binary()
+def build_alfred_run_command(
+    prompt: str, cwd: str | None = None, binary_override: Path | None = None
+) -> list[str]:
+    binary = binary_override or resolve_alfred_binary()
     if binary is None:
         raise FileNotFoundError(
-            "No scriptable `alfred` binary found. Set ALFRED_CLI_BIN or build cli/."
+            "No scriptable `alfred` binary found. "
+            "Set ALFRED_CLI_BIN or `cargo build -p alfred-cli` under cli/. "
+            "(Low-level helper; high-level agent streaming falls back to smolagents when absent.)"
         )
 
     command = [
         str(binary),
         "run",
         "--jsonl",
-        "--mode",
-        os.getenv("ALFRED_AGENT_MODE", DEFAULT_AGENT_MODE),
         "--prompt",
         prompt,
     ]
@@ -159,11 +160,9 @@ def select_fs_agent_backend(requested: FsAgentBackend) -> tuple[str, Path | None
     if requested in (FS_AGENT_BACKEND_AUTO, FS_AGENT_BACKEND_ALFRED):
         if binary:
             return FS_AGENT_BACKEND_ALFRED, binary
-        if requested == FS_AGENT_BACKEND_ALFRED:
-            # maintain the same error text to keep the CLI contract consistent
-            raise FileNotFoundError(
-                "No scriptable `alfred` binary found. Set ALFRED_CLI_BIN or build cli/."
-            )
+        # No scriptable alfred binary present.
+        # AUTO and explicit "alfred-cli" both fall back to smolagents so the
+        # unified agent path (only mode) always works. cwd remains optional.
     return FS_AGENT_BACKEND_SMOL, None
 
 
@@ -296,7 +295,6 @@ async def stream_llm_prompt(
     *,
     session_id: str | None = None,
     request_payload: dict[str, Any] | None = None,
-    mode: str = "chat",
     meta_extra: dict[str, Any] | None = None,
     image_base64: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
@@ -305,14 +303,14 @@ async def stream_llm_prompt(
     session_id, session_dir = ensure_session(session_id)
     events_path = session_dir / "events.ndjson"
     payload = dict(request_payload or {})
-    payload.setdefault("type", mode)
+    payload.setdefault("type", "agent")
     payload["prompt"] = prompt
     payload["session_id"] = session_id
     if image_base64:
         payload["image"] = True
     write_json(session_dir / "request.json", payload)
 
-    meta_payload = event("meta", session_id=session_id, mode=mode, **(meta_extra or {}))
+    meta_payload = event("meta", session_id=session_id, **(meta_extra or {}))
     append_jsonl(events_path, meta_payload)
     yield meta_payload
 

@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 FASTER_WHISPER_AVAILABLE = False
 WhisperModel = None

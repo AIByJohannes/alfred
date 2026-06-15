@@ -174,7 +174,7 @@ fn print_json_event(event_type: &str, fields: &[(&str, &str)]) {
     println!("{}", serde_json::Value::Object(map));
 }
 
-async fn run_json_mode(prompt: &str, _mode: &str, _cwd: Option<PathBuf>) -> Result<()> {
+async fn run_json_mode(prompt: &str, _cwd: Option<PathBuf>) -> Result<()> {
     let config = Config::load().await.unwrap_or_default();
     let api_key = match env::var("OPENROUTER_API_KEY").ok().or(config.openrouter_api_key.clone()) {
         Some(key) if !key.is_empty() => key,
@@ -193,7 +193,11 @@ async fn run_json_mode(prompt: &str, _mode: &str, _cwd: Option<PathBuf>) -> Resu
         Message::new(Role::User, prompt.to_string()),
     ];
 
-    let provider = OpenRouterProvider::new(api_key, "google/gemini-2.0-flash-001".to_string());
+    let model = std::env::var("OPENROUTER_MODEL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
+    let provider = OpenRouterProvider::new(api_key, model);
 
     match provider.respond(&messages).await {
         Ok(events) => {
@@ -263,16 +267,11 @@ async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() >= 3 && args[1] == "run" {
         let mut prompt: Option<String> = None;
-        let mut mode = "fs-agent".to_string();
         let mut cwd: Option<PathBuf> = None;
         let mut i = 2;
         while i < args.len() {
             match args[i].as_str() {
                 "--jsonl" => {}
-                "--mode" if i + 1 < args.len() => {
-                    mode = args[i + 1].clone();
-                    i += 1;
-                }
                 "--prompt" if i + 1 < args.len() => {
                     prompt = Some(args[i + 1].clone());
                     i += 1;
@@ -292,7 +291,7 @@ async fn main() -> Result<()> {
             if let Some(ref dir) = cwd {
                 std::env::set_current_dir(dir)?;
             }
-            return run_json_mode(&p, &mode, cwd).await;
+            return run_json_mode(&p, cwd).await;
         }
     }
 
@@ -500,8 +499,11 @@ fn spawn_mock_agent(input: String, tx: mpsc::Sender<AppEvent>) {
 
 fn spawn_agent(messages: Vec<Message>, tx: mpsc::Sender<AppEvent>, api_key: String) {
     tokio::spawn(async move {
-        // Use a default model, e.g., google/gemini-2.0-flash-001 (free on OpenRouter) or openai/gpt-3.5-turbo
-        let provider = OpenRouterProvider::new(api_key, "google/gemini-2.0-flash-001".to_string());
+        let model = std::env::var("OPENROUTER_MODEL")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
+        let provider = OpenRouterProvider::new(api_key, model);
         
         match provider.respond(&messages).await {
             Ok(events) => {
