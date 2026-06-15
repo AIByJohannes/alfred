@@ -145,12 +145,15 @@ app_ui = ui.page_sidebar(
 
             # Message input text bar
             ui.div(
-                ui.input_text(
-                    "prompt",
-                    None,
-                    placeholder="Message Alfred...",
-                    width="100%",
-                    autocomplete="off"
+                ui.div(
+                    ui.input_text(
+                        "prompt",
+                        None,
+                        placeholder="Message Alfred...",
+                        width="100%",
+                        autocomplete="off"
+                    ),
+                    class_="chat-text-input"
                 ),
                 ui.input_action_button("send", "Send", class_="btn-primary-custom"),
                 class_="input-group-custom"
@@ -235,7 +238,7 @@ def server(input, output, session):
                     },
                     selected="auto"
                 ),
-                style="margin-top: 1.25rem;"
+                class_="agent-settings-card"
             )
         return None
 

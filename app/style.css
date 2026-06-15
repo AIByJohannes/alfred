@@ -391,6 +391,17 @@ body {
 
 .chat-text-input {
   flex-grow: 1;
+  display: flex;
+  min-width: 0;
+}
+
+.chat-text-input .shiny-input-container {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.chat-text-input input.form-control {
   background: transparent !important;
   border: none !important;
   color: var(--text) !important;
@@ -398,10 +409,17 @@ body {
   padding: 0.5rem !important;
   outline: none !important;
   width: 100%;
+  box-shadow: none !important;
+  height: auto !important;
+  min-height: unset !important;
 }
 
-.chat-text-input::placeholder {
+.chat-text-input input.form-control::placeholder {
   color: var(--text-muted);
+}
+
+.chat-text-input .form-group {
+  margin-bottom: 0 !important;
 }
 
 .artifact-card {
@@ -426,4 +444,137 @@ body {
 .artifact-card a:hover {
   text-decoration: underline;
   color: var(--accent);
+}
+
+/* ===================== FILE UPLOAD BUTTONS ===================== */
+
+.toolbar-file-upload .shiny-input-container {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: auto !important;
+}
+
+.toolbar-file-upload .shiny-input-container .btn,
+.toolbar-file-upload .shiny-input-container button,
+.toolbar-file-upload .btn-file {
+  background-color: var(--panel) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 8px !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  line-height: 1.4 !important;
+}
+
+.toolbar-file-upload .shiny-input-container .btn:hover,
+.toolbar-file-upload .shiny-input-container button:hover,
+.toolbar-file-upload .btn-file:hover {
+  background-color: rgba(97, 175, 239, 0.15) !important;
+  border-color: var(--accent) !important;
+  color: var(--text) !important;
+}
+
+.toolbar-file-upload .progress {
+  display: none !important;
+}
+
+.toolbar-file-upload .shiny-input-container input.form-control[type="text"] {
+  display: none !important;
+}
+
+/* ===================== SIDEBAR AGENT CONTROLS ===================== */
+
+.agent-settings-card .shiny-input-container {
+  margin-bottom: 0.75rem !important;
+}
+
+.agent-settings-card .control-label {
+  color: var(--text-muted) !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.agent-settings-card input.form-control {
+  background-color: rgba(33, 37, 43, 0.6) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 6px !important;
+  color: var(--text) !important;
+  font-size: 0.85rem !important;
+  padding: 0.5rem 0.7rem !important;
+  box-shadow: none !important;
+  height: auto !important;
+  min-height: unset !important;
+}
+
+.agent-settings-card input.form-control:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(97, 175, 239, 0.25) !important;
+}
+
+.agent-settings-card .form-select,
+.agent-settings-card select.form-control {
+  background-color: rgba(33, 37, 43, 0.6) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 6px !important;
+  color: var(--text) !important;
+  font-size: 0.85rem !important;
+  padding: 0.5rem 0.7rem !important;
+  box-shadow: none !important;
+  height: auto !important;
+}
+
+.agent-settings-card .form-select:focus,
+.agent-settings-card select.form-control:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(97, 175, 239, 0.25) !important;
+}
+
+/* ===================== LAYOUT FIXES ===================== */
+
+.main-layout {
+  height: 100%;
+  min-height: 0;
+}
+
+.status-banner {
+  margin: 0.75rem 1.25rem;
+}
+
+.chat-container {
+  flex-grow: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chat-footer {
+  flex-shrink: 0;
+}
+
+/* ===================== RESPONSIVE ===================== */
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .message-bubble {
+    max-width: 90%;
+  }
+
+  .toolbar-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .chat-footer {
+    padding: 0.75rem;
+  }
+
+  .input-group-custom {
+    flex-wrap: wrap;
+  }
 }
