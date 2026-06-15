@@ -51,7 +51,7 @@ cli-check:
     cargo clippy --manifest-path cli/Cargo.toml --workspace --all-targets -- -D warnings
 
 cli-install:
-    cargo install --manifest-path cli/Cargo.toml --path cli/crates/alfred-cli --locked
+    cargo install --path cli/crates/alfred-cli --locked
 
 cli-update-prompts:
     mkdir -p cli/prompts
