@@ -41,11 +41,11 @@ alfred/
 ## Quick Start
 
 ```bash
-# One-time setup: creates Conda env with CUDA, installs Python deps
-just setup
+# One-time bootstrap: creates Conda env with CUDA, installs Python deps
+just install
 
 # Run the PyShiny workbench (calls Python wrappers directly)
-just app
+just run
 ```
 
 ## App
@@ -53,7 +53,8 @@ just app
 The PyShiny workbench imports Python wrappers directly (no API proxy needed):
 
 ```bash
-uv run shiny run app/app.py --port 8501
+just run
+# or manually: uv run shiny run app/app.py --port 8501
 ```
 
 It runs on `http://localhost:8501` by default.

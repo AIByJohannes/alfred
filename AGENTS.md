@@ -13,9 +13,11 @@
 - `tests/` contains tests.
 
 ## Build, Test, and Development Commands
-- `uv sync` installs Python dependencies.
-- `pytest -q` runs the test suite.
-- `uv run shiny run app/app.py --port 8501` starts the PyShiny workbench.
+- `just install` bootstraps the environment (conda + Python deps).
+- `just run` starts the PyShiny workbench with live reload.
+- `just test` runs the test suite.
+- `just check` runs lint, typecheck, and tests.
+- `just` lists all available recipes.
 
 ## Coding Style & Naming Conventions
 - Python uses 4-space indentation and straightforward, imperative function names.
