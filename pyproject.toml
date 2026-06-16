@@ -1,7 +1,7 @@
 [project]
 name = "alfred-local-workbench"
 version = "1.0.0"
-description = "Local-first Python orchestrator and PyShiny workbench for Alfred CLI"
+description = "Local-first Python orchestrator and Gradio workbench for Alfred CLI"
 authors = [{ name = "Johannes", email = "johannes@aibyjohannes.com" }]
 requires-python = ">=3.12,<4"
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
     "pydantic>=2.9.0,<3",
     "ddgs>=9.5.4,<10",
     "smolagents[openai]>=1.0.0,<2",
-    "shiny>=1.6.0",
+    "gradio>=4.44.0,<6",
 ]
 
 [project.optional-dependencies]
@@ -37,7 +37,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["llm", "prompts", "scripts", "transcription"]
+    packages = ["llm", "prompts", "scripts", "transcription", "app"]
 
 [build-system]
 requires = ["hatchling"]

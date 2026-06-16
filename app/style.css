@@ -73,36 +73,14 @@ body {
   opacity: 0.6;
 }
 
-/* Radio buttons as compact pill buttons */
-.sidebar .shiny-input-radiogroup {
+/* History radio as compact pill buttons (Gradio) */
+.history-radio {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
-.sidebar .shiny-options-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  width: 100%;
-}
-
-.sidebar .shiny-options-group .radio {
-  margin: 0 !important;
-  padding: 0 !important;
-  display: block;
-}
-
-.sidebar .shiny-options-group .radio input[type="radio"] {
-  position: absolute !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  margin: 0 !important;
-}
-
-.sidebar .shiny-options-group .radio label {
+.history-radio label {
   display: block !important;
   width: 100% !important;
   padding: 0.6rem 0.8rem !important;
@@ -118,22 +96,18 @@ body {
   font-weight: 400 !important;
 }
 
-.sidebar .shiny-options-group .radio label:hover {
+.history-radio label:hover {
   background-color: rgba(97, 175, 239, 0.15) !important;
   border-color: var(--accent) !important;
   color: var(--text) !important;
 }
 
-.sidebar .shiny-options-group .radio label:has(input:checked) {
+.history-radio input[type="radio"]:checked + label,
+.history-radio label:has(input:checked) {
   background-color: rgba(97, 175, 239, 0.3) !important;
   border-color: var(--accent) !important;
   color: var(--text) !important;
   font-weight: 600 !important;
-}
-
-.sidebar .shiny-options-group .radio label:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .main-layout {
@@ -425,13 +399,17 @@ body {
   min-width: 0;
 }
 
-.chat-text-input .shiny-input-container {
+.chat-text-input,
+.chat-text-input .gr-textbox,
+.chat-text-input > div {
   width: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
 }
 
-.chat-text-input input.form-control {
+.chat-text-input input[type="text"],
+.chat-text-input input,
+.chat-text-input textarea {
   background: transparent !important;
   border: none !important;
   color: var(--text) !important;
@@ -444,12 +422,10 @@ body {
   min-height: unset !important;
 }
 
-.chat-text-input input.form-control::placeholder {
+.chat-text-input input[type="text"]::placeholder,
+.chat-text-input input::placeholder,
+.chat-text-input textarea::placeholder {
   color: var(--text-muted);
-}
-
-.chat-text-input .form-group {
-  margin-bottom: 0 !important;
 }
 
 .artifact-card {
@@ -478,15 +454,16 @@ body {
 
 /* ===================== FILE UPLOAD BUTTONS ===================== */
 
-.toolbar-file-upload .shiny-input-container {
+.toolbar-file-upload,
+.toolbar-file-upload .gr-button,
+.toolbar-file-upload button {
   margin: 0 !important;
   padding: 0 !important;
   width: auto !important;
 }
 
-.toolbar-file-upload .shiny-input-container .btn,
-.toolbar-file-upload .shiny-input-container button,
-.toolbar-file-upload .btn-file {
+.toolbar-file-upload .gr-button,
+.toolbar-file-upload button {
   background-color: var(--panel) !important;
   color: var(--text) !important;
   border: 1px solid var(--panel-border) !important;
@@ -498,25 +475,19 @@ body {
   line-height: 1.4 !important;
 }
 
-.toolbar-file-upload .shiny-input-container .btn:hover,
-.toolbar-file-upload .shiny-input-container button:hover,
-.toolbar-file-upload .btn-file:hover {
+.toolbar-file-upload .gr-button:hover,
+.toolbar-file-upload button:hover {
   background-color: rgba(97, 175, 239, 0.15) !important;
   border-color: var(--accent) !important;
   color: var(--text) !important;
 }
 
-.toolbar-file-upload .progress {
-  display: none !important;
-}
-
-.toolbar-file-upload .shiny-input-container input.form-control[type="text"] {
-  display: none !important;
-}
-
 /* ===================== SIDEBAR AGENT CONTROLS ===================== */
 
-.agent-settings-card .shiny-input-container {
+.agent-settings-card .gr-textbox,
+.agent-settings-card .gr-dropdown,
+.agent-settings-card .gr-textbox > div,
+.agent-settings-card .gr-dropdown > div {
   margin-bottom: 0.75rem !important;
 }
 

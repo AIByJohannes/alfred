@@ -2,17 +2,17 @@
 
 **A**lgorithmic **L**ife-form **F**eigning **R**eal **E**motional **D**epth
 
-![PyShiny](https://img.shields.io/badge/-PyShiny-2176FF?style=flat&logo=shiny&logoColor=white)
+![Gradio](https://img.shields.io/badge/-Gradio-FCC624?style=flat&logo=gradio&logoColor=black)
 ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat&logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/-Rust-000000?style=flat&logo=rust&logoColor=white)
 
-Alfred is a local-first Python orchestration repo. It provides a PyShiny workbench and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
+Alfred is a local-first Python orchestration repo. It provides a Gradio workbench and Python wrapper scripts around the Rust `alfred` binary in `cli/`.
 
 ## Layout
 
 ```text
 alfred/
-├── app/          # PyShiny workbench
+├── app/          # Gradio workbench
 ├── llm/          # Python-side inference wrapper
 ├── prompts/      # Canonical system prompts
 ├── scripts/      # Python wrappers for inference, fs-agent, research
@@ -26,7 +26,7 @@ alfred/
 - Python handles local orchestration, inference calls, web-grounded helper scripts, and filesystem session state.
 - The Rust `alfred` binary handles filesystem-capable agent execution.
 - Filesystem-agent calls support a `backend` selector (`auto`, `alfred-cli`, `smolagents`); the default `auto` prefers `alfred-cli` and falls back to `smolagents` when the binary is unavailable.
-- The PyShiny workbench imports Python wrappers directly.
+- The Gradio workbench imports Python wrappers directly.
 - Runtime state is stored under `.alfred-runtime/`.
 - Database support is optional and not part of the default path.
 
@@ -44,17 +44,17 @@ alfred/
 # One-time bootstrap: creates Conda env with CUDA, installs Python deps
 just install
 
-# Run the PyShiny workbench (calls Python wrappers directly)
+# Run the Gradio workbench (calls Python wrappers directly)
 just run
 ```
 
 ## App
 
-The PyShiny workbench imports Python wrappers directly (no API proxy needed):
+The Gradio workbench imports Python wrappers directly (no API proxy needed):
 
 ```bash
 just run
-# or manually: uv run shiny run app/app.py --port 8501
+# or manually: uv run --active gradio app/app.py --port 8501
 ```
 
 It runs on `http://localhost:8501` by default.

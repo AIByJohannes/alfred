@@ -20,9 +20,9 @@ install: install-conda install-python
 
 # ── Application ────────────────────────────────────────
 
-# Launch the PyShiny workbench with live reload
+# Launch the Gradio workbench (live reload via gradio CLI)
 run:
-    conda run -n {{conda_env}} --live-stream uv run --active shiny run app/app.py --port 8501 --reload
+    conda run -n {{conda_env}} --live-stream uv run --active gradio app/app.py --port 8501 --reload
 
 # ── Python checks ──────────────────────────────────────
 

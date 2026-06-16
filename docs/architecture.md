@@ -4,7 +4,7 @@
 
 This repository is a local-first orchestration layer around the Rust `alfred` binary in `cli/`.
 
-- **PyShiny workbench**: local UI for prompt submission and streamed output; imports Python wrappers directly
+- **Gradio workbench**: local UI for prompt submission and streamed output; imports Python wrappers directly
 - **Python wrappers**: inference, filesystem-agent execution, and web-grounded helper scripts
 - **Rust `alfred` binary**: filesystem-capable agent runtime with TUI and ACP transport
 - **Filesystem runtime**: session logs, artifacts, and results under `.alfred-runtime/`
@@ -16,7 +16,7 @@ This repository is a local-first orchestration layer around the Rust `alfred` bi
 ```mermaid
 graph TD
     User[User]
-    UI[PyShiny Workbench]
+    UI[Gradio Workbench]
     PY[Python Wrappers]
     CLI[cli/ / alfred run --jsonl]
     FS[(.alfred-runtime)]
@@ -30,7 +30,7 @@ graph TD
     CLI --> FS
 ```
 
-The PyShiny workbench imports and calls Python wrapper functions directly.
+The Gradio workbench imports and calls Python wrapper functions directly.
 
 ### ACP Transport Scaffold (`alfred acp`)
 

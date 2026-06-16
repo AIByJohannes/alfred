@@ -9,12 +9,12 @@
 - `scripts/` contains Python wrapper entrypoints for inference, filesystem-agent runs, and research helpers.
 - `llm/` wraps Python-side inference via `smolagents`.
 - `prompts/` stores reusable prompt strings.
-- `app/` contains the PyShiny workbench.
+- `app/` contains the Gradio workbench.
 - `tests/` contains tests.
 
 ## Build, Test, and Development Commands
 - `just install` bootstraps the environment (conda + Python deps).
-- `just run` starts the PyShiny workbench with live reload.
+- `just run` starts the Gradio workbench with live reload.
 - `just test` runs the test suite.
 - `just check` runs lint, typecheck, and tests.
 - `just` lists all available recipes.
