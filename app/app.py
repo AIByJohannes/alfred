@@ -127,10 +127,10 @@ def _build_history_choices(sid: str | None) -> tuple[list[tuple[str, str]], str 
 
 def _load_session_into_state(
     sid: str,
-) -> tuple[list[dict], list[dict], str, str, str, str | None, str | None, str | None, object]:
+) -> tuple[list[dict], list[dict], str, str, str, str | None, str | None, str | None, object, list[dict]]:
     session_dir = get_sessions_root() / sid
     if not session_dir.exists():
-        return [], [], sid, "idle", "Session loaded.", None, None, None, gr.update()
+        return [], [], sid, "idle", "Session loaded.", None, None, None, gr.update(), []
 
     req_file = session_dir / "request.json"
     events_file = session_dir / "events.ndjson"
@@ -219,6 +219,7 @@ def _load_session_into_state(
         None,
         None,
         gr.update(choices=choices, value=sid),
+        new_msgs,
     )
 
 
@@ -261,6 +262,7 @@ async def _handle_send_stream(
         choices, val = _build_history_choices(current_sid)
         yield (
             current_msgs,
+            current_msgs,
             current_artifacts,
             "idle",
             "Standing by.",
@@ -281,6 +283,7 @@ async def _handle_send_stream(
     choices, val = _build_history_choices(current_sid)
     yield (
         new_msgs,
+        new_msgs,
         current_artifacts,
         "running",
         "Alfred is processing your query...",
@@ -295,6 +298,7 @@ async def _handle_send_stream(
     new_msgs = new_msgs + [{"role": "assistant", "content": "", "status": "running"}]
     choices, val = _build_history_choices(current_sid)
     yield (
+        new_msgs,
         new_msgs,
         current_artifacts,
         "running",
@@ -328,6 +332,7 @@ async def _handle_send_stream(
                 choices, val = _build_history_choices(new_sid)
                 yield (
                     new_msgs,
+                    new_msgs,
                     new_arts,
                     "running",
                     "Alfred is processing your query...",
@@ -347,6 +352,7 @@ async def _handle_send_stream(
                     choices, val = _build_history_choices(new_sid)
                     yield (
                         new_msgs,
+                        new_msgs,
                         new_arts,
                         "running",
                         "Alfred is processing your query...",
@@ -361,6 +367,7 @@ async def _handle_send_stream(
                 new_arts = new_arts + [event]
                 choices, val = _build_history_choices(new_sid)
                 yield (
+                    new_msgs,
                     new_msgs,
                     new_arts,
                     "running",
@@ -378,6 +385,7 @@ async def _handle_send_stream(
                     new_msgs[-1]["status"] = "done"
                 choices, val = _build_history_choices(new_sid)
                 yield (
+                    new_msgs,
                     new_msgs,
                     new_arts,
                     "done",
@@ -397,6 +405,7 @@ async def _handle_send_stream(
                 choices, val = _build_history_choices(new_sid)
                 yield (
                     new_msgs,
+                    new_msgs,
                     new_arts,
                     "error",
                     msg,
@@ -413,6 +422,7 @@ async def _handle_send_stream(
         choices, val = _build_history_choices(new_sid)
         yield (
             new_msgs,
+            new_msgs,
             new_arts,
             "done",
             "Run complete.",
@@ -428,6 +438,7 @@ async def _handle_send_stream(
             new_msgs[-1]["status"] = "error"
         choices, val = _build_history_choices(new_sid)
         yield (
+            new_msgs,
             new_msgs,
             new_arts,
             "error",
@@ -454,13 +465,15 @@ def _clear_state(msg: str):
         None,
         gr.update(value=""),
         gr.update(choices=choices, value=None),
+        [],
     )
 
 
 with gr.Blocks(
-    theme=gr.Theme.from_hub("d8ahazard/rd_blue"),
-    title="Alfred Workbench",
+    theme=gr.themes.Monochrome(),
+    title="Alfred",
     css=Path(__file__).parent.joinpath("style.css").read_text(),
+    fill_height=True,
 ) as demo:
     messages = gr.State([])
     session_id = gr.State(None)
@@ -470,11 +483,19 @@ with gr.Blocks(
     resolved_backend = gr.State(None)
     pending_image = gr.State(None)
     pending_image_name = gr.State(None)
+    sidebar_visible = gr.State(True)
 
     with gr.Row():
-        with gr.Column(scale=1, min_width=280, elem_classes=["sidebar"]):
+        with gr.Column(
+            scale=0, min_width=260, visible=True, elem_id="sidebar"
+        ) as sidebar_column:
             gr.Markdown("## A.L.F.R.E.D.")
-            new_session_btn = gr.Button("New Session", elem_classes=["btn-primary-custom", "w-100"])
+            new_session_btn = gr.Button(
+                "New Chat 🟢",
+                elem_id="new_session_btn",
+                elem_classes=["btn-primary-custom", "w-100"],
+            )
+
             cwd = gr.Textbox(
                 label="Working Directory (optional)",
                 placeholder="/path/to/repo",
@@ -495,45 +516,37 @@ with gr.Blocks(
                 elem_classes=["history-radio"],
             )
 
-        with gr.Column(scale=4, elem_classes=["main-layout"]):
-            status_html = gr.HTML(elem_classes=["status-banner"])
-            placeholder = (
-                "**Alfred Standing By.**\n\n"
-                "Greetings. I am Alfred, your Algorithmic Life-form Feigning "
-                "Real Emotional Depth.\n\n"
-                "Agent ready. Provide a prompt (cwd optional on left)."
-            )
-            chatbot = gr.Chatbot(
-                placeholder=placeholder,
-                type="messages",
-                elem_classes=["chat-container"],
-                show_copy_button=True,
-                avatar_images=(None, None),
-            )
-
-            with gr.Row(elem_classes=["toolbar-row"]):
-                image_upload = gr.UploadButton(
-                    "📷 Image",
-                    file_types=["image"],
-                    elem_classes=["toolbar-file-upload"],
+        with gr.Column(scale=1, elem_id="main-chat"):
+            with gr.Row(elem_classes=["header-row"]):
+                sidebar_toggle = gr.Button(
+                    "☰", elem_id="sidebar_toggle", elem_classes=["sidebar-toggle-btn"]
                 )
-                audio_upload = gr.UploadButton(
-                    "🎤 Voice",
-                    file_types=["audio"],
-                    elem_classes=["toolbar-file-upload"],
-                )
-                pending_html = gr.HTML(elem_classes=["pending-upload"])
-                gr.HTML("<div style='flex-grow:1'></div>")
-                clear_btn = gr.Button("Clear", elem_classes=["btn-secondary-custom"])
+                gr.Markdown("# Alfred Workspace", elem_classes=["header-title"])
 
-            with gr.Row(elem_classes=["chat-footer"]):
-                with gr.Row(elem_classes=["input-group-custom"]):
-                    prompt = gr.Textbox(
-                        placeholder="Message Alfred...",
-                        show_label=False,
-                        scale=8,
-                        elem_classes=["chat-text-input"],
-                        autofocus=True,
+            with gr.Column(elem_classes=["chat-center-wrapper"]):
+                status_html = gr.HTML(elem_classes=["status-banner"])
+                placeholder = (
+                    "**Alfred Standing By.**\n\n"
+                    "Greetings. I am Alfred, your Algorithmic Life-form Feigning "
+                    "Real Emotional Depth.\n\n"
+                    "Agent ready. Provide a prompt (cwd optional on left)."
+                )
+                chatbot = gr.Chatbot(
+                    placeholder=placeholder,
+                    type="messages",
+                    elem_id="chatbot",
+                    container=False,
+                    show_label=False,
+                    show_copy_button=True,
+                    avatar_images=(None, None),
+                    autoscroll=True,
+                )
+
+                with gr.Row(elem_classes=["toolbar-row"]):
+                    audio_upload = gr.UploadButton(
+                        "🎤 Voice Upload",
+                        file_types=["audio"],
+                        elem_classes=["toolbar-file-upload"],
                     )
                     voice_audio = gr.Audio(
                         sources=["microphone"],
@@ -541,9 +554,36 @@ with gr.Blocks(
                         label="",
                         show_label=False,
                         elem_classes=["voice-audio"],
-                        scale=1,
                     )
-                    send_btn = gr.Button("Send", elem_classes=["btn-primary-custom"], scale=1)
+                    pending_html = gr.HTML(elem_classes=["pending-upload"])
+                    gr.HTML("<div style='flex-grow:1'></div>")
+                    clear_btn = gr.Button("Clear", elem_classes=["btn-secondary-custom"])
+
+                with gr.Row(elem_id="input-container"):
+                    image_upload = gr.UploadButton(
+                        "📎",
+                        file_types=["image"],
+                        size="sm",
+                        elem_classes=["upload-btn-icon"],
+                        scale=0,
+                    )
+                    prompt = gr.Textbox(
+                        placeholder="Message Alfred...",
+                        container=False,
+                        show_label=False,
+                        scale=1,
+                        min_width=0,
+                        autofocus=True,
+                        lines=1,
+                        max_lines=7,
+                    )
+                    send_btn = gr.Button(
+                        "➤",
+                        size="sm",
+                        variant="primary",
+                        elem_classes=["btn-primary-custom"],
+                        scale=0,
+                    )
 
     # Derived renders
     status.change(
@@ -572,6 +612,18 @@ with gr.Blocks(
         choices, val = _build_history_choices(sid)
         return gr.update(choices=choices, value=val)
 
+    # Mobile collapse/expand toggle
+    def _toggle_sidebar(visible):
+        return not visible, gr.update(visible=not visible)
+
+    sidebar_toggle.click(
+        _toggle_sidebar,
+        inputs=[sidebar_visible],
+        outputs=[sidebar_visible, sidebar_column],
+        api_name=False,
+        show_api=False,
+    )
+
     # New / Clear
     new_session_btn.click(
         lambda: _clear_state("Session ready."),
@@ -586,6 +638,7 @@ with gr.Blocks(
             pending_image_name,
             prompt,
             history_radio,
+            chatbot,
         ],
         api_name=False,
         show_api=False,
@@ -603,6 +656,7 @@ with gr.Blocks(
             pending_image_name,
             prompt,
             history_radio,
+            chatbot,
         ],
         api_name=False,
         show_api=False,
@@ -622,6 +676,7 @@ with gr.Blocks(
             pending_image,
             pending_image_name,
             history_radio,
+            chatbot,
         ],
         api_name=False,
         show_api=False,
@@ -679,6 +734,7 @@ with gr.Blocks(
         ],
         outputs=[
             messages,
+            chatbot,
             artifacts,
             status,
             status_detail,
@@ -706,6 +762,7 @@ with gr.Blocks(
         ],
         outputs=[
             messages,
+            chatbot,
             artifacts,
             status,
             status_detail,

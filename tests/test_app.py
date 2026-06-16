@@ -26,7 +26,7 @@ def test_app_exports_gradio_blocks():
 def test_app_uses_required_theme():
     import app.app as appmod
     src = inspect.getsource(appmod)
-    assert 'gr.Theme.from_hub("d8ahazard/rd_blue")' in src or "d8ahazard/rd_blue" in src
+    assert 'gr.themes.Monochrome()' in src or 'gr.themes.Base()' in src
 
 
 def test_app_has_core_controls():
