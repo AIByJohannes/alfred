@@ -127,7 +127,18 @@ def _build_history_choices(sid: str | None) -> tuple[list[tuple[str, str]], str 
 
 def _load_session_into_state(
     sid: str,
-) -> tuple[list[dict], list[dict], str, str, str, str | None, str | None, str | None, object, list[dict]]:
+) -> tuple[
+    list[dict],
+    list[dict],
+    str,
+    str,
+    str,
+    str | None,
+    str | None,
+    str | None,
+    object,
+    list[dict],
+]:
     session_dir = get_sessions_root() / sid
     if not session_dir.exists():
         return [], [], sid, "idle", "Session loaded.", None, None, None, gr.update(), []
@@ -519,12 +530,15 @@ with gr.Blocks(
         with gr.Column(scale=1, elem_id="main-chat"):
             with gr.Row(elem_classes=["header-row"]):
                 sidebar_toggle = gr.Button(
-                    "☰", elem_id="sidebar_toggle", elem_classes=["sidebar-toggle-btn"]
+                    "☰",
+                    elem_id="sidebar_toggle",
+                    elem_classes=["sidebar-toggle-btn"],
+                    scale=0,
+                    min_width=40,
                 )
                 gr.Markdown("# Alfred Workspace", elem_classes=["header-title"])
 
             with gr.Column(elem_classes=["chat-center-wrapper"]):
-                status_html = gr.HTML(elem_classes=["status-banner"])
                 placeholder = (
                     "**Alfred Standing By.**\n\n"
                     "Greetings. I am Alfred, your Algorithmic Life-form Feigning "
@@ -586,13 +600,6 @@ with gr.Blocks(
                     )
 
     # Derived renders
-    status.change(
-        _render_status,
-        inputs=[status, status_detail],
-        outputs=[status_html],
-        api_name=False,
-        show_api=False,
-    )
     artifacts.change(
         _render_artifacts,
         inputs=[artifacts],

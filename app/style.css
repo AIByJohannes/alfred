@@ -100,50 +100,6 @@ footer,
   overflow: hidden !important;
 }
 
-.status-banner {
-  flex-shrink: 0;
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.3s ease;
-}
-
-.status-idle {
-  background-color: rgba(33, 37, 43, 0.5);
-  border: 1px solid var(--panel-border);
-  color: var(--text-muted);
-}
-
-.status-running {
-  background-color: rgba(97, 175, 239, 0.15);
-  border: 1px solid rgba(97, 175, 239, 0.4);
-  color: var(--accent);
-  animation: status-pulse 2s infinite ease-in-out;
-}
-
-.status-done {
-  background-color: rgba(152, 195, 121, 0.15);
-  border: 1px solid rgba(152, 195, 121, 0.4);
-  color: var(--success);
-}
-
-.status-error {
-  background-color: rgba(224, 108, 117, 0.15);
-  border: 1px solid rgba(224, 108, 117, 0.4);
-  color: var(--danger);
-}
-
-@keyframes status-pulse {
-  0% { opacity: 0.7; }
-  50% { opacity: 1; }
-  100% { opacity: 0.7; }
-}
-
 /* Chatbot */
 #chatbot {
   flex: 1 !important;
@@ -156,28 +112,39 @@ footer,
 }
 
 #chatbot .message-row {
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+  margin-bottom: 0.5rem !important;
   animation: fadeIn 0.2s ease-out forwards;
-  margin-bottom: 0.5rem;
 }
 
+/* User bubbles (right-aligned, options on left) */
 #chatbot .message-row.user-row {
-  justify-content: flex-end;
+  flex-direction: row-reverse !important;
+  justify-content: flex-start !important;
 }
 
+/* Bot bubbles (left-aligned, options on right) */
 #chatbot .message-row.bot-row {
-  justify-content: flex-start;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
 }
 
 #chatbot .message-row [data-testid="user"],
 #chatbot .message-row [data-testid="bot"] {
   display: flex !important;
   flex-direction: column !important;
+  width: fit-content !important;
   max-width: 80% !important;
   padding: 0.75rem 1rem !important;
   border-radius: 16px !important;
   font-size: 0.95rem !important;
   line-height: 1.5 !important;
   word-wrap: break-word !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
   margin-bottom: 0.5rem !important;
   border: none !important;
   box-shadow: none !important;
@@ -187,17 +154,66 @@ footer,
   background: var(--accent) !important;
   color: #fff !important;
   border-bottom-right-radius: 4px !important;
+  align-self: flex-end !important;
 }
 
 #chatbot .message-row [data-testid="bot"] {
   background: var(--user-bg) !important;
   color: var(--text) !important;
   border-bottom-left-radius: 4px !important;
+  align-self: flex-start !important;
 }
 
 #chatbot .message-row [data-testid="user"] *,
 #chatbot .message-row [data-testid="bot"] * {
   color: inherit !important;
+}
+
+/* Clean up copy/trash action icons (detach fix) */
+#chatbot .message-row .options,
+#chatbot .message-row .message-actions,
+#chatbot .message-row .feedback,
+#chatbot .message-row .feedback-buttons,
+#chatbot .message-row .action-buttons {
+  position: static !important;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  align-self: flex-end !important;
+  margin-bottom: 0.5rem !important;
+  gap: 0.25rem !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+#chatbot .message-row .options button,
+#chatbot .message-row .message-actions button,
+#chatbot .message-row .feedback button,
+#chatbot .message-row .feedback-buttons button,
+#chatbot .message-row .action-buttons button {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-muted) !important;
+  padding: 4px !important;
+  cursor: pointer !important;
+  transition: color 0.2s, background-color 0.2s !important;
+  font-size: 0.9rem !important;
+  min-width: unset !important;
+  width: auto !important;
+  height: auto !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+}
+
+#chatbot .message-row .options button:hover,
+#chatbot .message-row .message-actions button:hover,
+#chatbot .message-row .feedback button:hover,
+#chatbot .message-row .feedback-buttons button:hover,
+#chatbot .message-row .action-buttons button:hover {
+  color: var(--accent) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 /* Header */
@@ -211,6 +227,16 @@ footer,
   flex-shrink: 0 !important;
 }
 
+/* Align hamburger menu to the left by preventing wrapper growth */
+.header-row > div:has(.sidebar-toggle-btn) {
+  flex: none !important;
+  width: auto !important;
+}
+
+.header-row > div:has(.header-title) {
+  flex: 1 !important;
+}
+
 .header-row h1 {
   font-size: 1.1rem !important;
   font-weight: 600 !important;
@@ -221,19 +247,19 @@ footer,
 .sidebar-toggle-btn {
   background: transparent !important;
   color: var(--text) !important;
-  border: 1px solid var(--panel-border) !important;
-  border-radius: 8px !important;
-  padding: 0.35rem 0.75rem !important;
-  font-size: 1.1rem !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 0.25rem 0.4rem !important;
+  font-size: 1.15rem !important;
   cursor: pointer !important;
   box-shadow: none !important;
   min-width: unset !important;
   width: auto !important;
+  line-height: 1 !important;
 }
 
 .sidebar-toggle-btn:hover {
-  background-color: rgba(97, 175, 239, 0.15) !important;
-  border-color: var(--accent) !important;
+  background-color: rgba(97, 175, 239, 0.12) !important;
   color: var(--accent) !important;
 }
 
@@ -241,7 +267,7 @@ footer,
 #input-container {
   display: flex !important;
   align-items: center !important;
-  gap: 0.25rem !important;
+  gap: 0.35rem !important;
   background: var(--input-bg) !important;
   border: 1px solid var(--panel-border) !important;
   border-radius: 999px !important;
@@ -254,6 +280,13 @@ footer,
 
 #input-container:focus-within {
   border-color: var(--accent) !important;
+}
+
+/* Ensure wrapper divs are perfectly centered vertically */
+#input-container > div {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 #input-container .upload-btn-icon {
@@ -284,11 +317,15 @@ footer,
   border: none !important;
   padding: 0 !important;
   margin: 0 !important;
-  font-size: 1.2rem !important;
+  font-size: 1.15rem !important;
   color: var(--text-muted) !important;
   box-shadow: none !important;
   min-width: unset !important;
   border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
 }
 
 #input-container .upload-btn-icon button:hover {
@@ -298,6 +335,7 @@ footer,
 #input-container > div:has(.gr-textbox) {
   flex: 1 !important;
   min-width: 0 !important;
+  align-items: stretch !important;
 }
 
 #input-container .gr-textbox {
@@ -321,6 +359,8 @@ footer,
   min-height: unset !important;
   height: auto !important;
   font-family: 'Outfit', sans-serif !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
 }
 
 #input-container .gr-textbox textarea::placeholder {
@@ -339,11 +379,12 @@ footer,
   border: none !important;
   padding: 0 !important;
   margin: 0 !important;
-  font-size: 1rem !important;
+  font-size: 1.15rem !important;
   color: #fff !important;
   cursor: pointer !important;
   transition: background 0.2s, transform 0.1s !important;
   box-shadow: none !important;
+  line-height: 1 !important;
 }
 
 #input-container .btn-primary-custom:hover {
@@ -363,6 +404,37 @@ footer,
   gap: 0.75rem !important;
   padding: 0.25rem 1.5rem !important;
   flex-shrink: 0 !important;
+  position: relative !important; /* Context for absolute positioning of popover */
+}
+
+/* Voice recording popover — floating above toolbar */
+.voice-audio {
+  position: absolute !important;
+  bottom: 100% !important;
+  left: 1.5rem !important;
+  z-index: 1000 !important;
+  background: var(--panel) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45) !important;
+  margin-bottom: 0.5rem !important;
+  padding: 0.75rem 1rem !important;
+  width: 380px !important;
+  min-width: 360px !important;
+}
+
+/* Ensure Gradio audio controls inside the popover are fully visible and aligned */
+.voice-audio .wrap,
+.voice-audio .audio-container,
+.voice-audio > div {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.voice-audio button,
+.voice-audio .gr-button {
+  white-space: nowrap !important;
+  min-width: fit-content !important;
 }
 
 .toolbar-file-upload {
@@ -457,41 +529,72 @@ footer,
   box-shadow: 0 0 0 2px rgba(97, 175, 239, 0.25) !important;
 }
 
-/* History radio items */
+/* History items styling (no radio buttons, clean list rows) */
 .history-radio {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+}
+
+/* Hide radio inputs and their dots */
+.history-radio input[type="radio"],
+.history-radio input[type="radio"] + span::before,
+.history-radio input[type="radio"] + span::after,
+.history-radio .circle {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 .history-radio label {
-  display: block !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
   width: 100% !important;
-  padding: 0.6rem 0.8rem !important;
-  background: rgba(255,255,255,0.03) !important;
+  padding: 0.75rem 1rem !important;
+  background: rgba(255, 255, 255, 0.04) !important;
   border: 1px solid var(--panel-border) !important;
   border-radius: 8px !important;
-  color: var(--text-muted) !important;
-  font-size: 0.8rem !important;
-  text-align: center !important;
+  color: #cccccc !important; /* Increased contrast */
+  font-size: 0.85rem !important;
+  text-align: left !important;
   cursor: pointer !important;
   transition: all 0.2s ease !important;
   margin: 0 !important;
   font-weight: 400 !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
 }
 
 .history-radio label:hover {
-  background: rgba(97, 175, 239, 0.12) !important;
-  border-color: var(--accent) !important;
-  color: var(--text) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
 }
 
+/* Selected active state */
 .history-radio input[type="radio"]:checked + label,
 .history-radio label:has(input:checked) {
-  background: rgba(97, 175, 239, 0.25) !important;
+  background: rgba(97, 175, 239, 0.15) !important;
   border-color: var(--accent) !important;
-  color: var(--text) !important;
-  font-weight: 600 !important;
+  color: #ffffff !important;
+  font-weight: 500 !important;
+}
+
+/* Remove default Gradio radio wrapper margins/borders */
+.history-radio .wrap {
+  gap: 0.5rem !important;
+}
+.history-radio .form {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
 }
 
 /* New session button */
