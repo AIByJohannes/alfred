@@ -20,9 +20,9 @@ install: install-conda install-python
 
 # ── Application ────────────────────────────────────────
 
-# Launch the Gradio workbench (live reload via gradio CLI)
+# Launch the Gradio workbench with file watching / live reload
 run:
-    conda run -n {{conda_env}} --live-stream uv run --active gradio app/app.py --port 8501 --reload
+    conda run -n {{conda_env}} --live-stream uv run --active gradio app/app.py --watch-dirs app
 
 # ── Python checks ──────────────────────────────────────
 

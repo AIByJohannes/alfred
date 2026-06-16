@@ -54,7 +54,7 @@ The Gradio workbench imports Python wrappers directly (no API proxy needed):
 
 ```bash
 just run
-# or manually: uv run --active gradio app/app.py --port 8501
+# or manually: uv run --active python app/app.py
 ```
 
 It runs on `http://localhost:8501` by default.
