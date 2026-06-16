@@ -546,9 +546,27 @@ with gr.Blocks(
                     send_btn = gr.Button("Send", elem_classes=["btn-primary-custom"], scale=1)
 
     # Derived renders
-    status.change(_render_status, inputs=[status, status_detail], outputs=[status_html])
-    artifacts.change(_render_artifacts, inputs=[artifacts], outputs=[artifacts_html])
-    pending_image_name.change(_render_pending, inputs=[pending_image_name], outputs=[pending_html])
+    status.change(
+        _render_status,
+        inputs=[status, status_detail],
+        outputs=[status_html],
+        api_name=False,
+        show_api=False,
+    )
+    artifacts.change(
+        _render_artifacts,
+        inputs=[artifacts],
+        outputs=[artifacts_html],
+        api_name=False,
+        show_api=False,
+    )
+    pending_image_name.change(
+        _render_pending,
+        inputs=[pending_image_name],
+        outputs=[pending_html],
+        api_name=False,
+        show_api=False,
+    )
 
     def _refresh_history(sid):
         choices, val = _build_history_choices(sid)
@@ -569,6 +587,8 @@ with gr.Blocks(
             prompt,
             history_radio,
         ],
+        api_name=False,
+        show_api=False,
     )
     clear_btn.click(
         lambda: _clear_state("Workbench cleared."),
@@ -584,6 +604,8 @@ with gr.Blocks(
             prompt,
             history_radio,
         ],
+        api_name=False,
+        show_api=False,
     )
 
     # History load
@@ -601,6 +623,8 @@ with gr.Blocks(
             pending_image_name,
             history_radio,
         ],
+        api_name=False,
+        show_api=False,
     )
 
     # Image upload
@@ -618,6 +642,8 @@ with gr.Blocks(
         _handle_image,
         inputs=[image_upload],
         outputs=[pending_image, pending_image_name],
+        api_name=False,
+        show_api=False,
     )
 
     # Audio file upload -> transcribe to prompt
@@ -625,6 +651,8 @@ with gr.Blocks(
         _transcribe_and_fill,
         inputs=[audio_upload, prompt],
         outputs=[prompt, status, status_detail],
+        api_name=False,
+        show_api=False,
     )
 
     # Microphone recording -> transcribe to prompt
@@ -632,6 +660,8 @@ with gr.Blocks(
         _transcribe_and_fill,
         inputs=[voice_audio, prompt],
         outputs=[prompt, status, status_detail],
+        api_name=False,
+        show_api=False,
     )
 
     # Send
@@ -659,6 +689,8 @@ with gr.Blocks(
             prompt,
             history_radio,
         ],
+        api_name=False,
+        show_api=False,
     )
     prompt.submit(
         _handle_send_stream,
@@ -684,17 +716,37 @@ with gr.Blocks(
             prompt,
             history_radio,
         ],
+        api_name=False,
+        show_api=False,
     )
 
     # Keep chatbot in sync with messages state
-    messages.change(lambda m: m, inputs=[messages], outputs=[chatbot])
+    messages.change(
+        lambda m: m,
+        inputs=[messages],
+        outputs=[chatbot],
+        api_name=False,
+        show_api=False,
+    )
 
     # After any major action that may create new sessions, refresh history choices
     for ev in (status, session_id):
-        ev.change(_refresh_history, inputs=[session_id], outputs=[history_radio])
+        ev.change(
+            _refresh_history,
+            inputs=[session_id],
+            outputs=[history_radio],
+            api_name=False,
+            show_api=False,
+        )
 
     # Initial history load
-    demo.load(_refresh_history, inputs=[session_id], outputs=[history_radio])
+    demo.load(
+        _refresh_history,
+        inputs=[session_id],
+        outputs=[history_radio],
+        api_name=False,
+        show_api=False,
+    )
 
 
 app = demo
