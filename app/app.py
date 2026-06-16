@@ -29,6 +29,15 @@ def read_text(data: Any) -> str:
     return str(data) if data else ""
 
 
+def decode_voice_audio_data(payload: dict) -> tuple[bytes, str]:
+    mime = payload.get("mimeType", "audio/webm")
+    ext = mime.split("/")[-1].split(";")[0]
+    data_b64 = payload.get("data", "")
+    audio_bytes = base64.b64decode(data_b64)
+    filename = f"voice.{ext}"
+    return audio_bytes, filename
+
+
 def get_sessions() -> list[dict]:
     root = get_sessions_root()
     if not root.exists():
@@ -55,6 +64,60 @@ def get_sessions() -> list[dict]:
 
 
 # ======================== UI DEFINITION ========================
+
+VOICE_RECORDER_SCRIPT = """
+            // Browser microphone recording via MediaRecorder
+            let mediaRecorder = null;
+            let audioChunks = [];
+            let isRecording = false;
+
+            document.addEventListener("click", async (e) => {
+                const btn = e.target.closest("#voice_record");
+                if (!btn) return;
+
+                if (!isRecording) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+                            ? "audio/webm"
+                            : "audio/mp4";
+                        mediaRecorder = new MediaRecorder(stream, { mimeType });
+                        audioChunks = [];
+
+                        mediaRecorder.ondataavailable = (e) => {
+                            if (e.data.size > 0) audioChunks.push(e.data);
+                        };
+
+                        mediaRecorder.onstop = async () => {
+                            const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                            const buffer = await blob.arrayBuffer();
+                            const uint8 = new Uint8Array(buffer);
+                            let binary = "";
+                            for (let i = 0; i < uint8.length; i++) {
+                                binary += String.fromCharCode(uint8[i]);
+                            }
+                            const base64 = btoa(binary);
+                            stream.getTracks().forEach(t => t.stop());
+                            Shiny.setInputValue("voice_audio", {
+                                data: base64,
+                                mimeType: mediaRecorder.mimeType
+                            }, { priority: "event" });
+                        };
+
+                        mediaRecorder.start();
+                        isRecording = true;
+                        btn.classList.add("recording");
+                    } catch (err) {
+                        console.error("Mic access denied or unavailable:", err);
+                    }
+                } else {
+                    mediaRecorder.stop();
+                    isRecording = false;
+                    btn.classList.remove("recording");
+                }
+            });
+        """
+
 
 app_ui = ui.page_sidebar(
     # Left Sidebar Section
@@ -147,6 +210,12 @@ app_ui = ui.page_sidebar(
                     ),
                     class_="chat-text-input"
                 ),
+                ui.input_action_button(
+                    "voice_record",
+                    None,
+                    class_="btn-voice-custom",
+                    icon=ui.HTML('<i class="fas fa-microphone"></i>')
+                ),
                 ui.input_action_button("send", "Send", class_="btn-primary-custom"),
                 class_="input-group-custom"
             ),
@@ -185,7 +254,8 @@ app_ui = ui.page_sidebar(
                     }
                 });
             });
-        """)
+        """),
+        ui.tags.script(VOICE_RECORDER_SCRIPT)
     ),
 
     window_title="Alfred Workbench",
@@ -583,7 +653,6 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.send)
     async def _handle_send():
-        # Prevent parallel runs
         if running():
             return
 
@@ -591,32 +660,29 @@ def server(input, output, session):
         if not prompt_text or not prompt_text.strip():
             return
 
-        # Clear text input field instantly
         ui.update_text("prompt", value="")
 
-        # Lock states
-        running.set(True)
-        status.set("running")
-        status_detail.set("Alfred is processing your query...")
-
-        # Obtain uploaded image context
         img_b64 = pending_image()
         pending_image.set(None)
         pending_image_name.set(None)
 
-        # Add user query message
+        await _send_prompt(prompt_text, img_b64)
+
+    async def _send_prompt(prompt_text: str, img_b64: str | None = None):
+        running.set(True)
+        status.set("running")
+        status_detail.set("Alfred is processing your query...")
+
         current_msgs = list(messages())
         user_msg = {"role": "user", "content": prompt_text}
         if img_b64:
             user_msg["image_base64"] = img_b64
         messages.set(current_msgs + [user_msg])
 
-        # Append assistant streaming block placeholder
         current_msgs = messages()
         assistant_msg = {"role": "assistant", "content": "", "status": "running"}
         messages.set(current_msgs + [assistant_msg])
 
-        # Helper callback to stream text updates into the reactive message block
         def update_assistant_content(text_delta: str):
             msgs = list(messages())
             if msgs:
@@ -625,7 +691,6 @@ def server(input, output, session):
 
         run_session_id = session_id()
 
-        # Read agent configurations (cwd optional)
         run_cwd = ""
         run_backend = "auto"
         try:
@@ -695,6 +760,49 @@ def server(input, output, session):
                 msgs[-1]["status"] = status()
             messages.set(msgs)
             running.set(False)
+
+    @reactive.effect
+    @reactive.event(input.voice_audio)
+    async def _handle_voice_audio():
+        payload = input.voice_audio()
+        if not payload or not isinstance(payload, dict):
+            return
+
+        try:
+            audio_bytes, filename = decode_voice_audio_data(payload)
+        except Exception:
+            return
+
+        status.set("running")
+        status_detail.set("Transcribing voice...")
+
+        try:
+            from transcription.service import get_transcription_service
+
+            service = get_transcription_service()
+
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: service.transcribe_file(
+                    audio_data=audio_bytes,
+                    filename=filename,
+                ),
+            )
+
+            text = result.text.strip()
+            if not text:
+                ui.notification_show("Voice input was empty.", type="warning")
+                status.set("idle")
+                status_detail.set("Voice was empty.")
+                return
+
+            await _send_prompt(text)
+
+        except Exception as e:
+            ui.notification_show(f"Voice transcription failed: {e}", type="error")
+            status.set("error")
+            status_detail.set(f"Voice error: {e}")
 
 
 # ======================== APPLICATION MOUNT ========================

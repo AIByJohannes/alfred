@@ -274,6 +274,36 @@ body {
   box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
+.btn-voice-custom {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 8px !important;
+  padding: 0.6rem 0.8rem !important;
+  font-size: 1rem !important;
+  transition: all 0.2s ease !important;
+  line-height: 1.4 !important;
+}
+
+.btn-voice-custom:hover {
+  background-color: rgba(97, 175, 239, 0.15) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+.btn-voice-custom.recording {
+  background-color: rgba(224, 108, 117, 0.25) !important;
+  border-color: var(--danger) !important;
+  color: var(--danger) !important;
+  animation: voice-pulse 1s infinite ease-in-out;
+}
+
+@keyframes voice-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(224, 108, 117, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(224, 108, 117, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(224, 108, 117, 0); }
+}
+
 .btn-primary-custom {
   background: var(--accent) !important;
   color: var(--bg) !important;
