@@ -3,7 +3,6 @@ members = [
   "crates/alfred-cli",
   "crates/alfred-core",
   "crates/alfred-tools",
-  "crates/alfred-rag",
   "crates/alfred-node-bridge",
 ]
 resolver = "2"
@@ -14,6 +13,8 @@ version = "0.1.0"
 license = "MIT"
 
 [workspace.dependencies]
+cersei = { git = "https://github.com/pacifio/cersei" }
+cersei-memory = { git = "https://github.com/pacifio/cersei", features = ["graph"] }
 anyhow = "1.0"
 async-trait = "0.1"
 camino = { version = "1.1", features = ["serde1"] }

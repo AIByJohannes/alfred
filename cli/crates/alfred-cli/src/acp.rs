@@ -1,8 +1,6 @@
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 
-use alfred_core::{AgentEvent, AgentRouter, Message, Role};
-use alfred_core::providers::openrouter::OpenRouterProvider;
 use alfred_tools::config::Config;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -36,12 +34,30 @@ enum AcpServerEvent {
         transport: String,
         version: String,
     },
-    Delta { content: String },
-    ToolRequest { name: String, arguments: serde_json::Value },
-    ToolResult { name: String, output: String, is_error: bool },
-    Artifact { label: String, path: Option<String>, url: Option<String> },
-    Done { result: String },
-    Error { message: String, exit_code: Option<i32> },
+    Delta {
+        content: String,
+    },
+    ToolRequest {
+        name: String,
+        arguments: serde_json::Value,
+    },
+    ToolResult {
+        name: String,
+        output: String,
+        is_error: bool,
+    },
+    Artifact {
+        label: String,
+        path: Option<String>,
+        url: Option<String>,
+    },
+    Done {
+        result: String,
+    },
+    Error {
+        message: String,
+        exit_code: Option<i32>,
+    },
 }
 
 impl AcpServerEvent {
@@ -58,11 +74,15 @@ pub async fn run_acp(cwd: Option<PathBuf>) -> Result<()> {
     }
 
     let config = Config::load().await.unwrap_or_default();
-    let api_key = match std::env::var("OPENROUTER_API_KEY").ok().or(config.openrouter_api_key.clone()) {
+    let api_key = match std::env::var("OPENROUTER_API_KEY")
+        .ok()
+        .or(config.openrouter_api_key.clone())
+    {
         Some(key) if !key.is_empty() => key,
         _ => {
             AcpServerEvent::Error {
-                message: "No OpenRouter API key found. Set OPENROUTER_API_KEY or configure it.".to_string(),
+                message: "No OpenRouter API key found. Set OPENROUTER_API_KEY or configure it."
+                    .to_string(),
                 exit_code: Some(1),
             }
             .emit();
@@ -81,7 +101,10 @@ pub async fn run_acp(cwd: Option<PathBuf>) -> Result<()> {
             Ok(0) => break,
             Ok(_) => {}
             Err(e) => {
-                eprintln!("{{\"type\":\"error\",\"message\":\"stdin read error: {}\"}}", e);
+                eprintln!(
+                    "{{\"type\":\"error\",\"message\":\"stdin read error: {}\"}}",
+                    e
+                );
                 break;
             }
         }
@@ -113,14 +136,10 @@ pub async fn run_acp(cwd: Option<PathBuf>) -> Result<()> {
                     .filter(|p| p.is_dir())
                     .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
-                let model = std::env::var("OPENROUTER_MODEL")
-                    .ok()
-                    .filter(|s| !s.trim().is_empty())
-                    .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
                 session = Some(ActiveSession {
                     session_id,
                     cwd: resolved_cwd,
-                    provider: OpenRouterProvider::new(api_key.clone(), model),
+                    api_key: api_key.clone(),
                 });
 
                 if let Some(ref s) = session {
@@ -169,54 +188,119 @@ pub async fn run_acp(cwd: Option<PathBuf>) -> Result<()> {
 struct ActiveSession {
     session_id: String,
     cwd: PathBuf,
-    provider: OpenRouterProvider,
+    api_key: String,
 }
 
 async fn run_agent_loop(session: &mut ActiveSession, prompt: &str) {
+    std::env::set_var("OPENROUTER_API_KEY", &session.api_key);
+
     let system_prompt = alfred_tools::config::load_system_prompt()
         .await
         .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string());
 
-    let mut messages = Vec::new();
-    messages.push(Message::new(Role::System, system_prompt));
-    messages.push(Message::new(Role::User, prompt.to_string()));
-
-    match session.provider.respond(&messages).await {
-        Ok(events) => {
-            for event in events {
-                match event {
-                    AgentEvent::MessageDelta(content) => {
-                        AcpServerEvent::Delta { content }.emit();
-                    }
-                    AgentEvent::ToolRequest(call) => {
-                        AcpServerEvent::ToolRequest {
-                            name: call.name,
-                            arguments: call.arguments,
-                        }
-                        .emit();
-                    }
-                    AgentEvent::ToolResult(result) => {
-                        AcpServerEvent::ToolResult {
-                            name: result.name,
-                            output: result.output.to_string(),
-                            is_error: result.is_error,
-                        }
-                        .emit();
-                    }
-                    AgentEvent::Done => {}
+    let (provider, resolved_model) =
+        match cersei::provider::router::from_model_string(&openrouter_model()) {
+            Ok(provider) => provider,
+            Err(e) => {
+                AcpServerEvent::Error {
+                    message: format!("Failed to initialize provider: {e}"),
+                    exit_code: None,
                 }
+                .emit();
+                return;
             }
-            AcpServerEvent::Done {
-                result: "completed".to_string(),
-            }
-            .emit();
-        }
+        };
+
+    let (db_path, sessions_dir) = memory_paths();
+    let memory = match crate::memory::AlfredMemory::open(&db_path, &sessions_dir) {
+        Ok(memory) => memory,
         Err(e) => {
             AcpServerEvent::Error {
-                message: e.to_string(),
+                message: format!("Failed to open AlfredMemory: {e}"),
                 exit_code: None,
             }
             .emit();
+            return;
+        }
+    };
+
+    let agent = match cersei::Agent::builder()
+        .provider_boxed(provider)
+        .model(resolved_model)
+        .tools(cersei::tools::coding())
+        .system_prompt(system_prompt)
+        .working_dir(&session.cwd)
+        .session_id(&session.session_id)
+        .memory(memory)
+        .build()
+    {
+        Ok(agent) => agent,
+        Err(e) => {
+            AcpServerEvent::Error {
+                message: format!("Failed to build agent: {e}"),
+                exit_code: None,
+            }
+            .emit();
+            return;
+        }
+    };
+
+    let agent = std::sync::Arc::new(agent);
+    let mut stream = agent.run_stream(prompt);
+
+    while let Some(event) = stream.next().await {
+        match event {
+            cersei::AgentEvent::TextDelta(content) => {
+                AcpServerEvent::Delta { content }.emit();
+            }
+            cersei::AgentEvent::ToolStart { name, input, .. } => {
+                AcpServerEvent::ToolRequest {
+                    name,
+                    arguments: input,
+                }
+                .emit();
+            }
+            cersei::AgentEvent::ToolEnd {
+                name,
+                result,
+                is_error,
+                ..
+            } => {
+                AcpServerEvent::ToolResult {
+                    name,
+                    output: result,
+                    is_error,
+                }
+                .emit();
+            }
+            _ => {}
         }
     }
+
+    AcpServerEvent::Done {
+        result: "completed".to_string(),
+    }
+    .emit();
+}
+
+fn openrouter_model() -> String {
+    let model = std::env::var("OPENROUTER_MODEL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
+
+    if model.starts_with("openrouter/") {
+        model
+    } else {
+        format!("openrouter/{model}")
+    }
+}
+
+fn memory_paths() -> (PathBuf, PathBuf) {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let alfred_config_dir = PathBuf::from(home).join(".config").join("alfred");
+    (
+        alfred_config_dir.join("graph.db"),
+        alfred_config_dir.join("sessions"),
+    )
 }

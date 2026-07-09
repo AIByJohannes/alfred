@@ -74,6 +74,24 @@ def test_build_alfred_run_command_omits_cwd_when_none(tmp_path, monkeypatch):
     assert "--cwd" not in command
 
 
+def test_build_alfred_run_command_includes_session_id(tmp_path, monkeypatch):
+    binary = tmp_path / "alfred"
+    binary.write_text("#!/bin/sh\n", encoding="utf-8")
+    binary.chmod(0o755)
+    monkeypatch.setenv("ALFRED_CLI_BIN", str(binary))
+
+    command = build_alfred_run_command(
+        "ship it",
+        cwd="/tmp/repo",
+        session_id="test-session-123",
+    )
+
+    assert command[:3] == [str(binary), "run", "--jsonl"]
+    assert "--session-id" in command
+    session_idx = command.index("--session-id")
+    assert command[session_idx + 1] == "test-session-123"
+
+
 def test_select_fs_agent_backend_auto_prefers_cli(monkeypatch):
     fake_binary = Path("/usr/bin/alfred")
     monkeypatch.setattr("scripts.common.resolve_alfred_binary", lambda: fake_binary)

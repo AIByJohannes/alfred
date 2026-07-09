@@ -133,7 +133,10 @@ def shutil_which(binary: str) -> str | None:
 
 
 def build_alfred_run_command(
-    prompt: str, cwd: str | None = None, binary_override: Path | None = None
+    prompt: str,
+    cwd: str | None = None,
+    binary_override: Path | None = None,
+    session_id: str | None = None,
 ) -> list[str]:
     binary = binary_override or resolve_alfred_binary()
     if binary is None:
@@ -152,6 +155,8 @@ def build_alfred_run_command(
     ]
     if cwd:
         command.extend(["--cwd", cwd])
+    if session_id:
+        command.extend(["--session-id", session_id])
     return command
 
 

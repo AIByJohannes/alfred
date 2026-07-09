@@ -83,13 +83,13 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 
 - Handles `alfred acp` CLI entrypoint: stdio server mode
 - Session lifecycle: `session.start` → `prompt.send` → streaming events → `session.close`
-- Reuses `alfred-core` for agent execution (agent loop, provider calls)
+- Uses the modular `cersei` crate SDK for streaming agent and tool execution
 - Emits ACP-compliant JSON envelopes to stdout; diagnostics to stderr
 
 ### Rust CLI binary (`cli/`)
 
 - `alfred` — TUI (default)
-- `alfred run --jsonl --prompt <text>` — scriptable agent execution (cwd optional)
+- `alfred run --jsonl --prompt <text> --session-id <id>` — scriptable agent execution (cwd and session id optional)
 - `alfred acp` — ACP stdio transport (scaffold, not yet integrated)
 
 ## Environment Variables
@@ -98,5 +98,5 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 |------------------------|--------------------------------------|----------------------------------------------|
 | `ALFRED_CLI_BIN`       | auto-resolve from `cli/target/`      | Path to `alfred` binary                      |
 | `ALFRED_RUNTIME_ROOT`  | `.alfred-runtime`                    | Root for all session/event storage           |
-
 | `OPENROUTER_API_KEY`   | *(required)*                         | LLM provider key                             |
+| `OPENROUTER_MODEL`     | `deepseek/deepseek-v4-flash`         | OpenRouter model used by the Rust CLI        |

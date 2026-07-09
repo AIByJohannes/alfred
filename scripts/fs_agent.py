@@ -38,9 +38,14 @@ async def stream_filesystem_agent(
     # cwd is optional in both native and fallback paths.
     if selected_backend == FS_AGENT_BACKEND_ALFRED and binary is not None:
         try:
-            command = build_alfred_run_command(prompt, cwd=cwd, binary_override=binary)
             # Only allocate the native session after we know we can run the command.
             session_id, session_dir = ensure_session(session_id)
+            command = build_alfred_run_command(
+                prompt,
+                cwd=cwd,
+                binary_override=binary,
+                session_id=session_id,
+            )
             request_payload = {
                 "type": "fs-agent",
                 "prompt": prompt,
