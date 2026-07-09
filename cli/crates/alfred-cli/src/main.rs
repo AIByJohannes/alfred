@@ -3,12 +3,13 @@ use std::io::{self, Stdout};
 use std::path::PathBuf;
 use std::time::Duration;
 
-use alfred_core::{Message, Role, AgentRouter, AgentEvent};
-use alfred_core::providers::openrouter::OpenRouterProvider;
+use alfred_core::{Message, Role};
 use alfred_tools::config::Config;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use crossterm::{execute, terminal};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
@@ -21,6 +22,7 @@ use tokio::time;
 
 mod acp;
 mod markdown;
+mod memory;
 
 // OneDark Theme Colors
 const ONEDARK_BG: Color = Color::Rgb(40, 44, 52);
@@ -59,7 +61,8 @@ impl App {
     async fn new() -> Self {
         let config = Config::load().await.unwrap_or_default();
         // Check both config and environment variable
-        let mode = if config.openrouter_api_key.is_some() || env::var("OPENROUTER_API_KEY").is_ok() {
+        let mode = if config.openrouter_api_key.is_some() || env::var("OPENROUTER_API_KEY").is_ok()
+        {
             AppMode::Chat
         } else {
             AppMode::Setup
@@ -71,7 +74,7 @@ impl App {
 
         let mut messages = Vec::new();
         if matches!(mode, AppMode::Chat) {
-             messages.push(Message::new(Role::System, system_prompt));
+            messages.push(Message::new(Role::System, system_prompt));
         }
 
         Self {
@@ -101,9 +104,6 @@ impl App {
         };
 
         if let Some(message) = self.messages.get_mut(idx) {
-            if !message.content.is_empty() {
-                message.content.push(' ');
-            }
             message.content.push_str(&chunk);
         }
     }
@@ -122,13 +122,15 @@ impl App {
                 Role::Tool => ("Tool", ONEDARK_RED),
             };
 
-            lines.push(Line::from(vec![
-                Span::styled(format!("{}: ", label), Style::default().fg(color).bold()),
-            ]));
-            
-            let content_lines = markdown::render_markdown(&message.content, Style::default().fg(ONEDARK_FG));
+            lines.push(Line::from(vec![Span::styled(
+                format!("{}: ", label),
+                Style::default().fg(color).bold(),
+            )]));
+
+            let content_lines =
+                markdown::render_markdown(&message.content, Style::default().fg(ONEDARK_FG));
             lines.extend(content_lines);
-            
+
             lines.push(Line::from(""));
         }
         Text::from(lines)
@@ -167,70 +169,152 @@ fn install_panic_hook() {
 
 fn print_json_event(event_type: &str, fields: &[(&str, &str)]) {
     let mut map = serde_json::Map::new();
-    map.insert("type".to_string(), serde_json::Value::String(event_type.to_string()));
+    map.insert(
+        "type".to_string(),
+        serde_json::Value::String(event_type.to_string()),
+    );
     for (key, value) in fields {
-        map.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+        map.insert(
+            key.to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
     }
     println!("{}", serde_json::Value::Object(map));
 }
 
-async fn run_json_mode(prompt: &str, _cwd: Option<PathBuf>) -> Result<()> {
+fn openrouter_model() -> String {
+    let model = std::env::var("OPENROUTER_MODEL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
+
+    if model.starts_with("openrouter/") {
+        model
+    } else {
+        format!("openrouter/{model}")
+    }
+}
+
+fn memory_paths() -> (PathBuf, PathBuf) {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let alfred_config_dir = PathBuf::from(home).join(".config").join("alfred");
+    (
+        alfred_config_dir.join("graph.db"),
+        alfred_config_dir.join("sessions"),
+    )
+}
+
+async fn run_json_mode(
+    prompt: &str,
+    cwd: Option<PathBuf>,
+    session_id: Option<String>,
+) -> Result<()> {
     let config = Config::load().await.unwrap_or_default();
-    let api_key = match env::var("OPENROUTER_API_KEY").ok().or(config.openrouter_api_key.clone()) {
+    let api_key = match env::var("OPENROUTER_API_KEY")
+        .ok()
+        .or(config.openrouter_api_key.clone())
+    {
         Some(key) if !key.is_empty() => key,
         _ => {
             eprintln!("{{\"type\":\"error\",\"message\":\"No OpenRouter API key found. Set OPENROUTER_API_KEY or configure it.\"}}");
             std::process::exit(1);
         }
     };
+    env::set_var("OPENROUTER_API_KEY", &api_key);
 
     let system_prompt = alfred_tools::config::load_system_prompt()
         .await
         .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string());
 
-    let messages = vec![
-        Message::new(Role::System, system_prompt),
-        Message::new(Role::User, prompt.to_string()),
-    ];
-
-    let model = std::env::var("OPENROUTER_MODEL")
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
-    let provider = OpenRouterProvider::new(api_key, model);
-
-    match provider.respond(&messages).await {
-        Ok(events) => {
-            for event in events {
-                match event {
-                    AgentEvent::MessageDelta(content) => {
-                        print_json_event("delta", &[("content", &content)]);
-                    }
-                    AgentEvent::ToolRequest(call) => {
-                        let args_str = call.arguments.to_string();
-                        print_json_event("tool_request", &[
-                            ("name", &call.name),
-                            ("arguments", &args_str),
-                        ]);
-                    }
-                    AgentEvent::ToolResult(result) => {
-                        let output_str = result.output.to_string();
-                        print_json_event("tool_result", &[
-                            ("name", &result.name),
-                            ("output", &output_str),
-                            ("is_error", &result.is_error.to_string()),
-                        ]);
-                    }
-                    AgentEvent::Done => {}
-                }
+    let (provider, resolved_model) =
+        match cersei::provider::router::from_model_string(&openrouter_model()) {
+            Ok(provider) => provider,
+            Err(e) => {
+                eprintln!(
+                    "{}",
+                    serde_json::json!({
+                        "type": "error",
+                        "message": format!("Failed to initialize provider: {e}"),
+                    })
+                );
+                std::process::exit(1);
             }
-            print_json_event("done", &[("result", "completed")]);
-        }
+        };
+
+    let (db_path, sessions_dir) = memory_paths();
+    let memory = match memory::AlfredMemory::open(&db_path, &sessions_dir) {
+        Ok(memory) => memory,
         Err(e) => {
-            eprintln!("Error: {}", e);
+            eprintln!(
+                "{}",
+                serde_json::json!({
+                    "type": "error",
+                    "message": format!("Failed to open AlfredMemory: {e}"),
+                })
+            );
             std::process::exit(1);
         }
+    };
+
+    let working_dir = cwd.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let mut agent_builder = cersei::Agent::builder()
+        .provider_boxed(provider)
+        .model(resolved_model)
+        .tools(cersei::tools::coding())
+        .system_prompt(system_prompt)
+        .working_dir(&working_dir)
+        .memory(memory);
+
+    if let Some(ref sid) = session_id {
+        agent_builder = agent_builder.session_id(sid);
     }
+
+    let agent = match agent_builder.build() {
+        Ok(agent) => agent,
+        Err(e) => {
+            eprintln!(
+                "{}",
+                serde_json::json!({
+                    "type": "error",
+                    "message": format!("Failed to build agent: {e}"),
+                })
+            );
+            std::process::exit(1);
+        }
+    };
+
+    let agent = std::sync::Arc::new(agent);
+    let mut stream = agent.run_stream(prompt);
+
+    while let Some(event) = stream.next().await {
+        match event {
+            cersei::AgentEvent::TextDelta(content) => {
+                print_json_event("delta", &[("content", &content)]);
+            }
+            cersei::AgentEvent::ToolStart { name, input, .. } => {
+                let args_str = input.to_string();
+                print_json_event("tool_request", &[("name", &name), ("arguments", &args_str)]);
+            }
+            cersei::AgentEvent::ToolEnd {
+                name,
+                result,
+                is_error,
+                ..
+            } => {
+                print_json_event(
+                    "tool_result",
+                    &[
+                        ("name", &name),
+                        ("output", &result),
+                        ("is_error", &is_error.to_string()),
+                    ],
+                );
+            }
+            _ => {}
+        }
+    }
+
+    print_json_event("done", &[("result", "completed")]);
 
     Ok(())
 }
@@ -268,6 +352,7 @@ async fn main() -> Result<()> {
     if args.len() >= 3 && args[1] == "run" {
         let mut prompt: Option<String> = None;
         let mut cwd: Option<PathBuf> = None;
+        let mut session_id: Option<String> = None;
         let mut i = 2;
         while i < args.len() {
             match args[i].as_str() {
@@ -283,6 +368,10 @@ async fn main() -> Result<()> {
                     }
                     i += 1;
                 }
+                "--session-id" if i + 1 < args.len() => {
+                    session_id = Some(args[i + 1].clone());
+                    i += 1;
+                }
                 _ => {}
             }
             i += 1;
@@ -291,13 +380,11 @@ async fn main() -> Result<()> {
             if let Some(ref dir) = cwd {
                 std::env::set_current_dir(dir)?;
             }
-            return run_json_mode(&p, cwd).await;
+            return run_json_mode(&p, cwd, session_id).await;
         }
     }
 
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     install_panic_hook();
     let _terminal_guard = TerminalGuard;
@@ -312,17 +399,17 @@ async fn main() -> Result<()> {
 
     loop {
         terminal.draw(|frame| {
-            // Set background for the whole area? 
-            // Ratatui widgets draw over what's there. 
+            // Set background for the whole area?
+            // Ratatui widgets draw over what's there.
             // We'll apply the style to the widgets.
-            
+
             match app.mode {
                 AppMode::Setup => {
                     let chunks = Layout::default()
                         .direction(Direction::Vertical)
                         .constraints([Constraint::Min(1), Constraint::Length(3)])
                         .split(frame.size());
-                    
+
                     let info = Paragraph::new(Text::from(vec![
                         Line::from("Welcome to Alfred CLI!"),
                         Line::from(""),
@@ -333,20 +420,22 @@ async fn main() -> Result<()> {
                             Span::raw(")"),
                         ]),
                     ]))
-                    .block(Block::default()
-                        .borders(Borders::ALL)
-                        .title("Setup")
-                        .border_style(Style::default().fg(ONEDARK_BLUE))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title("Setup")
+                            .border_style(Style::default().fg(ONEDARK_BLUE)),
                     )
                     .style(Style::default().fg(ONEDARK_FG).bg(ONEDARK_BG))
                     .wrap(Wrap { trim: false });
                     frame.render_widget(info, chunks[0]);
 
                     let input = Paragraph::new(format!("> {}", app.input))
-                        .block(Block::default()
-                            .borders(Borders::ALL)
-                            .title("API Key")
-                            .border_style(Style::default().fg(ONEDARK_BLUE))
+                        .block(
+                            Block::default()
+                                .borders(Borders::ALL)
+                                .title("API Key")
+                                .border_style(Style::default().fg(ONEDARK_BLUE)),
                         )
                         .style(Style::default().fg(ONEDARK_GREEN).bg(ONEDARK_BG));
                     frame.render_widget(input, chunks[1]);
@@ -358,10 +447,11 @@ async fn main() -> Result<()> {
                         .split(frame.size());
 
                     let messages = Paragraph::new(app.render_messages())
-                        .block(Block::default()
-                            .borders(Borders::ALL)
-                            .title("Alfred")
-                            .border_style(Style::default().fg(ONEDARK_BLUE))
+                        .block(
+                            Block::default()
+                                .borders(Borders::ALL)
+                                .title("Alfred")
+                                .border_style(Style::default().fg(ONEDARK_BLUE)),
                         )
                         .style(Style::default().fg(ONEDARK_FG).bg(ONEDARK_BG))
                         .wrap(Wrap { trim: false })
@@ -369,10 +459,11 @@ async fn main() -> Result<()> {
                     frame.render_widget(messages, chunks[0]);
 
                     let input = Paragraph::new(format!("> {}", app.input))
-                        .block(Block::default()
-                            .borders(Borders::ALL)
-                            .title("Input")
-                            .border_style(Style::default().fg(ONEDARK_BLUE))
+                        .block(
+                            Block::default()
+                                .borders(Borders::ALL)
+                                .title("Input")
+                                .border_style(Style::default().fg(ONEDARK_BLUE)),
                         )
                         .style(Style::default().fg(ONEDARK_GREEN).bg(ONEDARK_BG));
                     frame.render_widget(input, chunks[1]);
@@ -397,10 +488,10 @@ async fn main() -> Result<()> {
                                 AppMode::Setup => {
                                     app.config.openrouter_api_key = Some(content);
                                     if let Err(e) = app.config.save().await {
-                                         // In a real app we might show an error message
-                                         eprintln!("Failed to save config: {}", e);
+                                        // In a real app we might show an error message
+                                        eprintln!("Failed to save config: {}", e);
                                     }
-                                    
+
                                     let system_prompt = alfred_tools::config::load_system_prompt()
                                         .await
                                         .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string());
@@ -412,7 +503,7 @@ async fn main() -> Result<()> {
                                 AppMode::Chat => {
                                     app.push_user(content.clone());
                                     app.input.clear();
-                                    
+
                                     // Prioritize env var, then config
                                     let api_key = env::var("OPENROUTER_API_KEY")
                                         .ok()
@@ -456,11 +547,12 @@ async fn main() -> Result<()> {
 fn spawn_input_reader(tx: mpsc::Sender<AppEvent>) {
     tokio::spawn(async move {
         loop {
-            let event_ready = tokio::task::spawn_blocking(|| event::poll(Duration::from_millis(250)))
-                .await
-                .ok()
-                .and_then(|res| res.ok())
-                .unwrap_or(false);
+            let event_ready =
+                tokio::task::spawn_blocking(|| event::poll(Duration::from_millis(250)))
+                    .await
+                    .ok()
+                    .and_then(|res| res.ok())
+                    .unwrap_or(false);
             if event_ready {
                 if let Ok(ev) = event::read() {
                     if tx.send(AppEvent::Input(ev)).await.is_err() {
@@ -488,7 +580,11 @@ fn spawn_mock_agent(input: String, tx: mpsc::Sender<AppEvent>) {
     tokio::spawn(async move {
         let reply = format!("(mock) I heard: {}", input);
         for chunk in reply.split_whitespace() {
-            if tx.send(AppEvent::AgentChunk(chunk.to_string())).await.is_err() {
+            if tx
+                .send(AppEvent::AgentChunk(chunk.to_string()))
+                .await
+                .is_err()
+            {
                 return;
             }
             time::sleep(Duration::from_millis(80)).await;
@@ -497,29 +593,98 @@ fn spawn_mock_agent(input: String, tx: mpsc::Sender<AppEvent>) {
     });
 }
 
+fn map_role(role: alfred_core::Role) -> Option<cersei::types::Role> {
+    match role {
+        alfred_core::Role::System => Some(cersei::types::Role::System),
+        alfred_core::Role::User => Some(cersei::types::Role::User),
+        alfred_core::Role::Assistant => Some(cersei::types::Role::Assistant),
+        alfred_core::Role::Tool => None,
+    }
+}
+
 fn spawn_agent(messages: Vec<Message>, tx: mpsc::Sender<AppEvent>, api_key: String) {
     tokio::spawn(async move {
-        let model = std::env::var("OPENROUTER_MODEL")
-            .ok()
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
-        let provider = OpenRouterProvider::new(api_key, model);
-        
-        match provider.respond(&messages).await {
-            Ok(events) => {
-                for event in events {
-                    if let AgentEvent::MessageDelta(content) = event {
-                        if tx.send(AppEvent::AgentChunk(content)).await.is_err() {
-                            return;
-                        }
-                    }
+        env::set_var("OPENROUTER_API_KEY", &api_key);
+
+        let (provider, resolved_model) =
+            match cersei::provider::router::from_model_string(&openrouter_model()) {
+                Ok(provider) => provider,
+                Err(e) => {
+                    let _ = tx.send(AppEvent::AgentChunk(format!("Error: {}", e))).await;
+                    let _ = tx.send(AppEvent::AgentDone).await;
+                    return;
                 }
-            }
-            Err(e) => {
-                let _ = tx.send(AppEvent::AgentChunk(format!("Error: {}", e))).await;
+            };
+
+        let mut cersei_messages = Vec::new();
+        for msg in messages {
+            if let Some(role) = map_role(msg.role) {
+                cersei_messages.push(cersei::types::Message {
+                    role,
+                    content: cersei::types::MessageContent::Text(msg.content),
+                    id: None,
+                    metadata: None,
+                });
             }
         }
+
+        if cersei_messages.is_empty() {
+            let _ = tx
+                .send(AppEvent::AgentChunk(
+                    "Error: Message history is empty".to_string(),
+                ))
+                .await;
+            let _ = tx.send(AppEvent::AgentDone).await;
+            return;
+        }
+
+        let last_msg = cersei_messages.pop().unwrap();
+        let prompt = last_msg.get_all_text();
+
+        let (db_path, sessions_dir) = memory_paths();
+        let memory = match memory::AlfredMemory::open(&db_path, &sessions_dir) {
+            Ok(memory) => memory,
+            Err(e) => {
+                let _ = tx
+                    .send(AppEvent::AgentChunk(format!(
+                        "Error opening AlfredMemory: {}",
+                        e
+                    )))
+                    .await;
+                let _ = tx.send(AppEvent::AgentDone).await;
+                return;
+            }
+        };
+
+        let agent = match cersei::Agent::builder()
+            .provider_boxed(provider)
+            .model(resolved_model)
+            .tools(cersei::tools::none())
+            .with_messages(cersei_messages)
+            .memory(memory)
+            .build()
+        {
+            Ok(agent) => agent,
+            Err(e) => {
+                let _ = tx
+                    .send(AppEvent::AgentChunk(format!("Error building agent: {}", e)))
+                    .await;
+                let _ = tx.send(AppEvent::AgentDone).await;
+                return;
+            }
+        };
+
+        let agent = std::sync::Arc::new(agent);
+        let mut stream = agent.run_stream(&prompt);
+
+        while let Some(event) = stream.next().await {
+            if let cersei::AgentEvent::TextDelta(content) = event {
+                if tx.send(AppEvent::AgentChunk(content)).await.is_err() {
+                    return;
+                }
+            }
+        }
+
         let _ = tx.send(AppEvent::AgentDone).await;
     });
 }
-

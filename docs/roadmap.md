@@ -7,9 +7,14 @@ The repo has been cut over from a backend microservice project into a local-firs
 ## Completed
 
 1. (DONE) Finish the non-interactive `alfred run` contract in `cli/`
-    - Added `alfred run --jsonl --prompt <prompt>` (cwd optional)
+   - Added `alfred run --jsonl --prompt <prompt>` (cwd optional)
    - Outputs JSONL events (`meta`, `delta`, `tool_request`, `tool_result`, `done`, `error`)
    - Falls back to smolagents when CLI binary is unavailable
+
+2. (DONE) Migrate Rust CLI execution to the Cersei crate SDK
+   - Replaced legacy unary OpenRouter routing in TUI chat mode, JSONL mode, and ACP mode.
+   - Added persistent transcript and graph memory through `cersei-memory`.
+   - Preserves Python runtime session IDs via `alfred run --session-id`.
 
 ## Near-Term Work
 
