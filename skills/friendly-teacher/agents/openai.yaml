@@ -1,0 +1,4 @@
+interface:
+  display_name: "Friendly Teacher"
+  short_description: "Teach technical topics with concise, adaptive explanations."
+  default_prompt: "Use $friendly-teacher to explain this topic clearly."

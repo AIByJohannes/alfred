@@ -1,18 +1,20 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
-from models import FS_AGENT_BACKEND_ALFRED, FS_AGENT_BACKEND_SMOL
+from models import FS_AGENT_BACKEND_ALFRED
 from scripts.common import (
     append_message,
+    build_alfred_acp_command,
     build_alfred_run_command,
     ensure_session,
     format_sse_event,
     get_messages_path,
     parse_cli_event,
+    relay_acp_subprocess,
     select_fs_agent_backend,
-    stream_llm_prompt,
 )
 
 
@@ -74,6 +76,26 @@ def test_build_alfred_run_command_omits_cwd_when_none(tmp_path, monkeypatch):
     assert "--cwd" not in command
 
 
+def test_build_alfred_acp_command_uses_binary_and_cwd(tmp_path, monkeypatch):
+    binary = tmp_path / "alfred"
+    binary.write_text("#!/bin/sh\n", encoding="utf-8")
+    binary.chmod(0o755)
+    monkeypatch.setenv("ALFRED_CLI_BIN", str(binary))
+
+    command = build_alfred_acp_command(cwd="/tmp/repo")
+
+    assert command == [str(binary), "acp", "--cwd", "/tmp/repo"]
+
+
+def test_build_alfred_acp_command_omits_cwd_when_none(tmp_path, monkeypatch):
+    binary = tmp_path / "alfred"
+    binary.write_text("#!/bin/sh\n", encoding="utf-8")
+    binary.chmod(0o755)
+    monkeypatch.setenv("ALFRED_CLI_BIN", str(binary))
+
+    assert build_alfred_acp_command() == [str(binary), "acp"]
+
+
 def test_build_alfred_run_command_includes_session_id(tmp_path, monkeypatch):
     binary = tmp_path / "alfred"
     binary.write_text("#!/bin/sh\n", encoding="utf-8")
@@ -102,53 +124,89 @@ def test_select_fs_agent_backend_auto_prefers_cli(monkeypatch):
     assert resolved == fake_binary
 
 
-def test_select_fs_agent_backend_auto_falls_back_when_missing(monkeypatch):
+def test_select_fs_agent_backend_auto_reports_missing_cli(monkeypatch):
     monkeypatch.setattr("scripts.common.resolve_alfred_binary", lambda: None)
 
     backend, resolved = select_fs_agent_backend("auto")
 
-    assert backend == FS_AGENT_BACKEND_SMOL
+    assert backend == FS_AGENT_BACKEND_ALFRED
     assert resolved is None
 
 
-def test_select_fs_agent_backend_explicit_alfred_falls_back_gracefully_when_missing(monkeypatch):
-    # With only-agent mode, explicit "alfred-cli" must not hard-fail when the
-    # binary is absent; it falls back to smolagents so the agent path always works.
-    # cwd remains optional.
+def test_select_fs_agent_backend_explicit_alfred_reports_missing_cli(monkeypatch):
     monkeypatch.setattr("scripts.common.resolve_alfred_binary", lambda: None)
 
     backend, resolved = select_fs_agent_backend(FS_AGENT_BACKEND_ALFRED)
 
-    assert backend == FS_AGENT_BACKEND_SMOL
+    assert backend == FS_AGENT_BACKEND_ALFRED
     assert resolved is None
 
 
 @pytest.mark.asyncio
-async def test_stream_llm_prompt_records_events(monkeypatch, tmp_path):
+async def test_relay_acp_subprocess_streams_and_persists_protocol_events(
+    tmp_path, monkeypatch
+):
     monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    session_id, session_dir = ensure_session("acp-test")
+    fake_server = tmp_path / "fake_acp_server.py"
+    fake_server.write_text(
+        """
+import json
+import sys
 
-    class DummyEngine:
-        def run(self, prompt: str, **kwargs: object) -> str:
-            assert prompt == "test prompt"
-            return "response"
+active_session = None
 
-    monkeypatch.setattr("scripts.common.LLMEngine", DummyEngine)
+for raw_line in sys.stdin:
+    message = json.loads(raw_line)
+    if message["type"] == "session.start":
+        active_session = message["session_id"]
+        print(json.dumps({
+            "type": "meta",
+            "session_id": active_session,
+            "cwd": message["cwd"],
+            "backend": "fake",
+            "transport": "acp",
+            "version": "1",
+        }), flush=True)
+    elif message["type"] == "prompt.send":
+        print(json.dumps({
+            "type": "delta",
+            "content": f"echo: {message['prompt']}",
+        }), flush=True)
+        print(json.dumps({"type": "done", "result": "completed"}), flush=True)
+    elif message["type"] == "session.close":
+        break
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    request_payload = {
+        "type": "fs-agent",
+        "prompt": "test prompt",
+        "cwd": str(tmp_path),
+        "session_id": session_id,
+        "backend": "alfred-cli",
+        "transport": "acp",
+    }
 
     events = []
-    async for payload in stream_llm_prompt(
-        "test prompt",
-        request_payload={"type": "fs-agent", "backend": "smolagents"},
-        meta_extra={"backend": "smolagents"},
+    async for payload in relay_acp_subprocess(
+        [sys.executable, str(fake_server)],
+        session_dir=session_dir,
+        request_payload=request_payload,
+        cwd=str(tmp_path),
     ):
         events.append(payload)
 
-    assert events[0]["type"] == "meta"
-    assert events[0]["backend"] == "smolagents"
-    assert events[1]["type"] == "delta"
-    assert events[1]["content"] == "response"
-    assert events[2]["type"] == "done"
-    session_id = events[0]["session_id"]
-    assert (tmp_path / "sessions" / session_id / "request.json").exists()
+    assert [payload["type"] for payload in events] == ["meta", "delta", "done"]
+    assert events[0]["session_id"] == session_id
+    assert events[1]["content"] == "echo: test prompt"
+    assert json.loads((session_dir / "result.json").read_text()) == {
+        "type": "done",
+        "result": "completed",
+        "session_id": session_id,
+    }
+    assert (session_dir / "request.json").exists()
 
 
 def test_append_message_persists_to_file(tmp_path, monkeypatch):

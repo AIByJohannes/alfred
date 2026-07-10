@@ -1,11 +1,13 @@
-use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tokio::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     pub openrouter_api_key: Option<String>,
+    #[serde(default)]
+    pub mcp_servers: Vec<cersei::mcp::McpServerConfig>,
 }
 
 impl Config {
@@ -18,9 +20,8 @@ impl Config {
         let content = fs::read_to_string(&config_path)
             .await
             .context("Failed to read config file")?;
-        
-        let config: Config = toml::from_str(&content)
-            .context("Failed to parse config file")?;
+
+        let config: Config = toml::from_str(&content).context("Failed to parse config file")?;
 
         Ok(config)
     }
@@ -33,8 +34,7 @@ impl Config {
                 .context("Failed to create config directory")?;
         }
 
-        let content = toml::to_string(self)
-            .context("Failed to serialize config")?;
+        let content = toml::to_string(self).context("Failed to serialize config")?;
 
         fs::write(&config_path, content)
             .await
@@ -58,7 +58,7 @@ pub async fn load_system_prompt() -> Option<String> {
     if let Ok(prompts_dir) = get_prompts_dir() {
         let soul_path = prompts_dir.join("SOUL.md");
         if soul_path.exists() {
-             return fs::read_to_string(soul_path).await.ok();
+            return fs::read_to_string(soul_path).await.ok();
         }
     }
     None

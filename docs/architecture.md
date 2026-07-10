@@ -6,12 +6,12 @@ This repository is a local-first orchestration layer around the Rust `alfred` bi
 
 - **Gradio workbench**: local UI for prompt submission and streamed output; imports Python wrappers directly
 - **Python wrappers**: inference, filesystem-agent execution, and web-grounded helper scripts
-- **Rust `alfred` binary**: filesystem-capable agent runtime with TUI and ACP transport
+- **Rust `alfred` binary**: filesystem-capable agent runtime with TUI, ACP transport, and Agent Skills discovery
 - **Filesystem runtime**: session logs, artifacts, and results under `.alfred-runtime/`
 
 ## Flow
 
-### Current State (JSONL Subprocess Bridge)
+### Native Agent Bridge (ACP)
 
 ```mermaid
 graph TD
@@ -25,14 +25,14 @@ graph TD
     User --> UI
     UI -->|direct calls| PY
     PY -->|inference| LLM
-    PY -->|fs-agent| CLI
+    PY -->|ACP stdio| CLI
     PY --> FS
     CLI --> FS
 ```
 
 The Gradio workbench imports and calls Python wrapper functions directly.
 
-### ACP Transport Scaffold (`alfred acp`)
+### ACP Transport (`alfred acp`)
 
 ```mermaid
 graph TD
@@ -68,15 +68,15 @@ The `alfred acp` subcommand implements an Agent Communication Protocol (ACP) ser
 { "type": "error",         "message": "...", "exit_code": null }
 ```
 
-The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py` still uses the legacy `--jsonl` subprocess mode). Integration is tracked as follow-up work.
+The Python filesystem-agent wrapper launches `alfred acp`, sends the session and prompt envelopes, and persists the returned events in `.alfred-runtime/` through the same contract used by the workbench.
 
 ## Responsibilities
 
 ### Python wrapper layer (`scripts/`)
 
 - `common.py`: session management, JSONL helpers, SSE formatting, binary resolution
-- `fs_agent.py`: runs filesystem-agent requests via `alfred run --jsonl` subprocess, fallback to `smolagents`
-- `chat.py`: Python-side inference via `smolagents` / `llm` (kept for compatibility; primary agent path is `fs_agent.py`)
+- `fs_agent.py`: runs filesystem-agent requests through `alfred acp`
+- `chat.py`: compatibility wrapper over the same Rust/Cersei ACP agent path
 - `research.py`: web-grounded research helpers
 
 ### Rust ACP server (`cli/crates/alfred-cli/src/acp.rs`)
@@ -90,7 +90,29 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 
 - `alfred` — TUI (default)
 - `alfred run --jsonl --prompt <text> --session-id <id>` — scriptable agent execution (cwd and session id optional)
-- `alfred acp` — ACP stdio transport (scaffold, not yet integrated)
+- `alfred acp` — ACP stdio transport used by the Python workbench bridge
+
+## Context and Skills
+
+The Rust agent uses Cersei's `Grep` and `CodeSearch` tools for repository search. `Grep` is
+ripgrep-compatible: it supports regex, respects `.gitignore`, skips binary files, and returns
+`path:line:content` matches without requiring a separate RAG index.
+
+Each executable agent path also exposes Cersei's `Skill` tool. It discovers standard `SKILL.md`
+packages from the current project, including the repository-owned `skills/` directory. The starter
+skills are `codebase-research` for evidence-led repository work and `friendly-teacher` for concise,
+adaptive technical explanations.
+
+Configured MCP servers are connected at startup. Their discovered tools are available to the agent
+through the permissioned `mcp_call` bridge, which routes a tool name and JSON arguments to the
+owning server. Define stdio servers in `~/.config/alfred/config.toml`:
+
+```toml
+[[mcp_servers]]
+name = "obsidian"
+command = "obsidian"
+args = ["mcp", "serve"]
+```
 
 ## Environment Variables
 
@@ -99,4 +121,4 @@ The ACP transport is not yet wired into the Python bridge (`scripts/fs_agent.py`
 | `ALFRED_CLI_BIN`       | auto-resolve from `cli/target/`      | Path to `alfred` binary                      |
 | `ALFRED_RUNTIME_ROOT`  | `.alfred-runtime`                    | Root for all session/event storage           |
 | `OPENROUTER_API_KEY`   | *(required)*                         | LLM provider key                             |
-| `OPENROUTER_MODEL`     | `deepseek/deepseek-v4-flash`         | OpenRouter model used by the Rust CLI        |
+| `OPENROUTER_MODEL`     | `google/gemini-3.5-flash`            | OpenRouter model used by the Rust CLI        |

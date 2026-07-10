@@ -11,7 +11,9 @@ Alfred CLI provides a modern, interactive terminal user interface (TUI) built wi
 *   **Interactive Chat:** coding assistance, debugging, and general inquiries.
 *   **File Editing:** Reading, writing, and patching files within your local repository.
 *   **Tool Execution:** Running shell commands, git operations, and custom tools safely.
-*   **RAG (Retrieval-Augmented Generation):** Indexing and searching your codebase and documentation for context-aware answers.
+*   **Code Search:** ripgrep-compatible, `.gitignore`-aware search without a separate index.
+*   **Skills:** project-local `SKILL.md` packages, including standard Agent Skills layouts.
+*   **MCP:** configured stdio servers are discovered and exposed through a native `mcp_call` tool.
 
 ## Architecture
 
@@ -20,7 +22,7 @@ The project is structured as a Rust workspace with the following crates:
 *   **`alfred-cli`**: The TUI entry point, command router, and UI components.
 *   **`alfred-core`**: The agent runtime, handling conversation state, planning, and orchestration.
 *   **`alfred-tools`**: A collection of tools for filesystem access, shell execution, and git operations.
-*   **`alfred-rag`**: The retrieval layer for indexing and searching code and documents.
+*   **Cersei coding tools**: filesystem editing, shell execution, and ripgrep-compatible code search.
 *   **`alfred-node-bridge`**: Optional native bridge for npm-based distribution or Node integrations.
 
 ## Getting Started

@@ -22,6 +22,7 @@ use tokio::time;
 
 mod acp;
 mod markdown;
+mod mcp_bridge;
 mod memory;
 
 // OneDark Theme Colors
@@ -186,7 +187,7 @@ fn openrouter_model() -> String {
     let model = std::env::var("OPENROUTER_MODEL")
         .ok()
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
+        .unwrap_or_else(|| "google/gemini-3.5-flash".to_string());
 
     if model.starts_with("openrouter/") {
         model
@@ -257,10 +258,20 @@ async fn run_json_mode(
     };
 
     let working_dir = cwd.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let mut tools = cersei::tools::coding();
+    tools.push(Box::new(
+        cersei::tools::skill_tool::SkillTool::new()
+            .with_project_root(&working_dir)
+            .with_extra_path(working_dir.join("skills")),
+    ));
+    if let Some(mcp_tool) = mcp_bridge::connect_tool(&config.mcp_servers).await {
+        tools.push(mcp_tool);
+    }
+
     let mut agent_builder = cersei::Agent::builder()
         .provider_boxed(provider)
         .model(resolved_model)
-        .tools(cersei::tools::coding())
+        .tools(tools)
         .system_prompt(system_prompt)
         .working_dir(&working_dir)
         .memory(memory);
@@ -605,6 +616,7 @@ fn map_role(role: alfred_core::Role) -> Option<cersei::types::Role> {
 fn spawn_agent(messages: Vec<Message>, tx: mpsc::Sender<AppEvent>, api_key: String) {
     tokio::spawn(async move {
         env::set_var("OPENROUTER_API_KEY", &api_key);
+        let config = Config::load().await.unwrap_or_default();
 
         let (provider, resolved_model) =
             match cersei::provider::router::from_model_string(&openrouter_model()) {
@@ -656,12 +668,24 @@ fn spawn_agent(messages: Vec<Message>, tx: mpsc::Sender<AppEvent>, api_key: Stri
             }
         };
 
+        let working_dir = std::env::current_dir().unwrap_or_default();
+        let mut tools = cersei::tools::coding();
+        tools.push(Box::new(
+            cersei::tools::skill_tool::SkillTool::new()
+                .with_project_root(&working_dir)
+                .with_extra_path(working_dir.join("skills")),
+        ));
+        if let Some(mcp_tool) = mcp_bridge::connect_tool(&config.mcp_servers).await {
+            tools.push(mcp_tool);
+        }
+
         let agent = match cersei::Agent::builder()
             .provider_boxed(provider)
             .model(resolved_model)
-            .tools(cersei::tools::none())
+            .tools(tools)
             .with_messages(cersei_messages)
             .memory(memory)
+            .working_dir(working_dir)
             .build()
         {
             Ok(agent) => agent,

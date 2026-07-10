@@ -1,17 +1,27 @@
 import asyncio
 import base64
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import gradio as gr
 
-from scripts.common import get_sessions_root
+from scripts.common import get_runtime_root, get_sessions_root
 from scripts.fs_agent import stream_filesystem_agent
 
 
 def _short(s: str, n: int = 40) -> str:
     return (s[:n] + "...") if len(s) > n else s
+
+
+def _format_session_timestamp(value: str) -> str:
+    try:
+        timestamp = datetime.strptime(value, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+    except ValueError:
+        return value
+    return timestamp.strftime("%d %b %Y, %H:%M UTC")
 
 
 def read_text(data: Any) -> str:
@@ -38,7 +48,52 @@ def decode_voice_audio_data(payload: dict) -> tuple[bytes, str]:
     return audio_bytes, filename
 
 
-def get_sessions() -> list[dict]:
+DEFAULT_WORKSPACE_ID = "general"
+
+
+def _workspace_path() -> Path:
+    return get_runtime_root() / "workspaces.json"
+
+
+def _read_workspaces() -> dict[str, dict[str, Any]]:
+    try:
+        payload = json.loads(_workspace_path().read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and payload:
+            return payload
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {DEFAULT_WORKSPACE_ID: {"name": "General", "sessions": []}}
+
+
+def _write_workspaces(workspaces: dict[str, dict[str, Any]]) -> None:
+    _workspace_path().write_text(json.dumps(workspaces, indent=2), encoding="utf-8")
+
+
+def _workspace_choices() -> list[tuple[str, str]]:
+    return [(data["name"], workspace_id) for workspace_id, data in _read_workspaces().items()]
+
+
+def _create_workspace(name: str) -> object:
+    cleaned = name.strip()
+    workspaces = _read_workspaces()
+    if not cleaned:
+        return gr.update(choices=_workspace_choices(), value=DEFAULT_WORKSPACE_ID)
+    workspace_id = f"workspace-{uuid4().hex[:8]}"
+    workspaces[workspace_id] = {"name": cleaned[:80], "sessions": []}
+    _write_workspaces(workspaces)
+    return gr.update(choices=_workspace_choices(), value=workspace_id)
+
+
+def _add_session_to_workspace(workspace_id: str, session_id: str) -> None:
+    workspaces = _read_workspaces()
+    target_id = workspace_id if workspace_id in workspaces else DEFAULT_WORKSPACE_ID
+    for data in workspaces.values():
+        data["sessions"] = [sid for sid in data.get("sessions", []) if sid != session_id]
+    workspaces[target_id].setdefault("sessions", []).append(session_id)
+    _write_workspaces(workspaces)
+
+
+def get_sessions(workspace_id: str | None = None) -> list[dict]:
     root = get_sessions_root()
     if not root.exists():
         return []
@@ -60,7 +115,14 @@ def get_sessions() -> list[dict]:
             )
         except Exception:
             pass
-    return sessions
+    if workspace_id is None:
+        return sessions
+    workspaces = _read_workspaces()
+    known_sessions = {sid for item in workspaces.values() for sid in item.get("sessions", [])}
+    allowed = set(workspaces.get(workspace_id, {}).get("sessions", []))
+    if workspace_id == DEFAULT_WORKSPACE_ID:
+        allowed.update(session["id"] for session in sessions if session["id"] not in known_sessions)
+    return [session for session in sessions if session["id"] in allowed]
 
 
 def _render_status(st: str, dt: str) -> str:
@@ -112,14 +174,16 @@ def _render_pending(name: str | None) -> str:
     )
 
 
-def _build_history_choices(sid: str | None) -> tuple[list[tuple[str, str]], str | None]:
-    sessions = get_sessions()
+def _build_history_choices(
+    sid: str | None, workspace_id: str | None = DEFAULT_WORKSPACE_ID
+) -> tuple[list[tuple[str, str]], str | None]:
+    sessions = get_sessions(workspace_id)
     choices: list[tuple[str, str]] = []
     for s in sessions:
         lbl = s["prompt"][:40] or "Empty session"
         if len(s["prompt"]) > 40:
             lbl += "..."
-        lbl += f"\n{s['timestamp']}"
+        lbl += f"\n{_format_session_timestamp(s['timestamp'])}"
         choices.append((lbl, s["id"]))
     value = sid if any(c[1] == sid for c in choices) else None
     return choices, value
@@ -127,6 +191,7 @@ def _build_history_choices(sid: str | None) -> tuple[list[tuple[str, str]], str 
 
 def _load_session_into_state(
     sid: str,
+    workspace_id: str = DEFAULT_WORKSPACE_ID,
 ) -> tuple[
     list[dict],
     list[dict],
@@ -190,13 +255,14 @@ def _load_session_into_state(
             if image_b64:
                 prefix = f"![image](data:image/png;base64,{image_b64})\n\n"
                 content = (prefix + content) if content else prefix
-            new_msgs.append(
-                {
-                    "role": msg["role"],
-                    "content": content,
-                    "status": msg.get("status"),
-                }
-            )
+            if str(content).strip():
+                new_msgs.append(
+                    {
+                        "role": msg["role"],
+                        "content": content,
+                        "status": msg.get("status"),
+                    }
+                )
     else:
         user_prompt = meta.get("prompt", "Loaded session")
         assistant_content = ""
@@ -217,9 +283,12 @@ def _load_session_into_state(
         if image_b64:
             user_prompt = f"![image](data:image/png;base64,{image_b64})\n\n{user_prompt}"
         new_msgs.append({"role": "user", "content": user_prompt})
-        new_msgs.append({"role": "assistant", "content": assistant_content, "status": "done"})
+        if assistant_content.strip():
+            new_msgs.append(
+                {"role": "assistant", "content": assistant_content, "status": "done"}
+            )
 
-    choices, _ = _build_history_choices(sid)
+    choices, _ = _build_history_choices(sid, workspace_id)
     return (
         new_msgs,
         new_artifacts,
@@ -268,9 +337,10 @@ async def _handle_send_stream(
     current_artifacts: list[dict],
     current_sid: str | None,
     current_res: str | None,
+    workspace_id: str,
 ):
     if not prompt_text or not str(prompt_text).strip():
-        choices, val = _build_history_choices(current_sid)
+        choices, val = _build_history_choices(current_sid, workspace_id)
         yield (
             current_msgs,
             current_msgs,
@@ -291,7 +361,7 @@ async def _handle_send_stream(
         user_content = f"![image](data:image/png;base64,{img_b64})\n\n{prompt_text}"
 
     new_msgs = current_msgs + [{"role": "user", "content": user_content}]
-    choices, val = _build_history_choices(current_sid)
+    choices, val = _build_history_choices(current_sid, workspace_id)
     yield (
         new_msgs,
         new_msgs,
@@ -306,24 +376,20 @@ async def _handle_send_stream(
         gr.update(choices=choices, value=val),
     )
 
-    new_msgs = new_msgs + [{"role": "assistant", "content": "", "status": "running"}]
-    choices, val = _build_history_choices(current_sid)
-    yield (
-        new_msgs,
-        new_msgs,
-        current_artifacts,
-        "running",
-        "Alfred is processing your query...",
-        current_sid,
-        current_res,
-        None,
-        None,
-        gr.update(value=""),
-        gr.update(choices=choices, value=val),
-    )
+    agent_prompt = prompt_text
+    if current_sid is None and current_msgs:
+        transcript = "\n".join(
+            f"{message.get('role', 'user').title()}: {message.get('content', '')}"
+            for message in current_msgs
+        )
+        agent_prompt = (
+            "Continue this forked conversation. Treat the transcript as context, then answer "
+            "the final user message.\n\n<conversation>\n"
+            f"{transcript}\n</conversation>\n\nFinal user message: {prompt_text}"
+        )
 
     gen = stream_filesystem_agent(
-        prompt_text,
+        agent_prompt,
         cwd=cwd_val or None,
         session_id=current_sid,
         backend=backend_val,
@@ -340,7 +406,9 @@ async def _handle_send_stream(
             if et == "meta":
                 new_sid = event.get("session_id", new_sid)
                 res_b = event.get("backend", res_b)
-                choices, val = _build_history_choices(new_sid)
+                if new_sid:
+                    _add_session_to_workspace(workspace_id, new_sid)
+                choices, val = _build_history_choices(new_sid, workspace_id)
                 yield (
                     new_msgs,
                     new_msgs,
@@ -358,9 +426,13 @@ async def _handle_send_stream(
                 text = read_text(event)
                 if text:
                     content += text
-                    if new_msgs:
+                    if new_msgs and new_msgs[-1].get("role") == "assistant":
                         new_msgs[-1]["content"] = content
-                    choices, val = _build_history_choices(new_sid)
+                    else:
+                        new_msgs = new_msgs + [
+                            {"role": "assistant", "content": content, "status": "running"}
+                        ]
+                    choices, val = _build_history_choices(new_sid, workspace_id)
                     yield (
                         new_msgs,
                         new_msgs,
@@ -376,7 +448,7 @@ async def _handle_send_stream(
                     )
             elif et == "artifact":
                 new_arts = new_arts + [event]
-                choices, val = _build_history_choices(new_sid)
+                choices, val = _build_history_choices(new_sid, workspace_id)
                 yield (
                     new_msgs,
                     new_msgs,
@@ -392,9 +464,9 @@ async def _handle_send_stream(
                 )
             elif et == "done":
                 msg = event.get("result") or event.get("message") or "Run complete."
-                if new_msgs:
+                if new_msgs and new_msgs[-1].get("role") == "assistant":
                     new_msgs[-1]["status"] = "done"
-                choices, val = _build_history_choices(new_sid)
+                choices, val = _build_history_choices(new_sid, workspace_id)
                 yield (
                     new_msgs,
                     new_msgs,
@@ -411,9 +483,9 @@ async def _handle_send_stream(
                 return
             elif et == "error":
                 msg = event.get("message") or "The run failed."
-                if new_msgs:
+                if new_msgs and new_msgs[-1].get("role") == "assistant":
                     new_msgs[-1]["status"] = "error"
-                choices, val = _build_history_choices(new_sid)
+                choices, val = _build_history_choices(new_sid, workspace_id)
                 yield (
                     new_msgs,
                     new_msgs,
@@ -428,9 +500,9 @@ async def _handle_send_stream(
                     gr.update(choices=choices, value=val),
                 )
                 return
-        if new_msgs:
+        if new_msgs and new_msgs[-1].get("role") == "assistant":
             new_msgs[-1]["status"] = "done"
-        choices, val = _build_history_choices(new_sid)
+        choices, val = _build_history_choices(new_sid, workspace_id)
         yield (
             new_msgs,
             new_msgs,
@@ -445,9 +517,9 @@ async def _handle_send_stream(
             gr.update(choices=choices, value=val),
         )
     except Exception as e:
-        if new_msgs:
+        if new_msgs and new_msgs[-1].get("role") == "assistant":
             new_msgs[-1]["status"] = "error"
-        choices, val = _build_history_choices(new_sid)
+        choices, val = _build_history_choices(new_sid, workspace_id)
         yield (
             new_msgs,
             new_msgs,
@@ -463,8 +535,8 @@ async def _handle_send_stream(
         )
 
 
-def _clear_state(msg: str):
-    choices, _ = _build_history_choices(None)
+def _clear_state(msg: str, workspace_id: str = DEFAULT_WORKSPACE_ID):
+    choices, _ = _build_history_choices(None, workspace_id)
     return (
         [],
         None,
@@ -477,6 +549,25 @@ def _clear_state(msg: str):
         gr.update(value=""),
         gr.update(choices=choices, value=None),
         [],
+    )
+
+
+def _fork_session(
+    current_msgs: list[dict], current_artifacts: list[dict], workspace_id: str
+):
+    choices, _ = _build_history_choices(None, workspace_id)
+    return (
+        current_msgs,
+        None,
+        current_artifacts,
+        "idle",
+        "Fork ready.",
+        None,
+        None,
+        None,
+        gr.update(value=""),
+        gr.update(choices=choices, value=None),
+        current_msgs,
     )
 
 
@@ -502,7 +593,7 @@ with gr.Blocks(
         ) as sidebar_column:
             gr.Markdown("## A.L.F.R.E.D.")
             new_session_btn = gr.Button(
-                "New Chat 🟢",
+                "New Chat",
                 elem_id="new_session_btn",
                 elem_classes=["btn-primary-custom", "w-100"],
             )
@@ -513,11 +604,28 @@ with gr.Blocks(
                 elem_classes=["agent-settings-card"],
             )
             fs_backend = gr.Dropdown(
-                choices=["auto", "alfred-cli", "smolagents"],
+                choices=["auto", "alfred-cli"],
                 value="auto",
-                label="Backend Fallback",
+                label="Agent Backend",
                 elem_classes=["agent-settings-card"],
             )
+            workspace_selector = gr.Dropdown(
+                choices=_workspace_choices(),
+                value=DEFAULT_WORKSPACE_ID,
+                label="Workspace",
+                elem_classes=["agent-settings-card"],
+            )
+            with gr.Row(elem_classes=["workspace-create-row"]):
+                workspace_name = gr.Textbox(
+                    placeholder="New workspace",
+                    show_label=False,
+                    container=False,
+                    min_width=0,
+                    elem_classes=["workspace-name-input"],
+                )
+                create_workspace_btn = gr.Button(
+                    "+", size="sm", scale=0, elem_id="create_workspace_btn", min_width=36
+                )
             artifacts_html = gr.HTML(elem_classes=["artifacts-panel"])
             gr.Markdown("### History")
             history_radio = gr.Radio(
@@ -571,6 +679,7 @@ with gr.Blocks(
                     )
                     pending_html = gr.HTML(elem_classes=["pending-upload"])
                     gr.HTML("<div style='flex-grow:1'></div>")
+                    fork_btn = gr.Button("Fork", elem_classes=["btn-secondary-custom"])
                     clear_btn = gr.Button("Clear", elem_classes=["btn-secondary-custom"])
 
                 with gr.Row(elem_id="input-container"):
@@ -615,9 +724,13 @@ with gr.Blocks(
         show_api=False,
     )
 
-    def _refresh_history(sid):
-        choices, val = _build_history_choices(sid)
+    def _refresh_history(sid, workspace_id):
+        choices, val = _build_history_choices(sid, workspace_id)
         return gr.update(choices=choices, value=val)
+
+    def _change_workspace(workspace_id):
+        choices, _ = _build_history_choices(None, workspace_id)
+        return gr.update(choices=choices, value=None)
 
     # Mobile collapse/expand toggle
     def _toggle_sidebar(visible):
@@ -631,9 +744,30 @@ with gr.Blocks(
         show_api=False,
     )
 
+    create_workspace_btn.click(
+        _create_workspace,
+        inputs=[workspace_name],
+        outputs=[workspace_selector],
+        api_name=False,
+        show_api=False,
+    ).then(
+        lambda: gr.update(value=""),
+        outputs=[workspace_name],
+        api_name=False,
+        show_api=False,
+    )
+    workspace_selector.change(
+        _change_workspace,
+        inputs=[workspace_selector],
+        outputs=[history_radio],
+        api_name=False,
+        show_api=False,
+    )
+
     # New / Clear
     new_session_btn.click(
-        lambda: _clear_state("Session ready."),
+        lambda workspace_id: _clear_state("Session ready.", workspace_id),
+        inputs=[workspace_selector],
         outputs=[
             messages,
             session_id,
@@ -651,7 +785,27 @@ with gr.Blocks(
         show_api=False,
     )
     clear_btn.click(
-        lambda: _clear_state("Workbench cleared."),
+        lambda workspace_id: _clear_state("Workbench cleared.", workspace_id),
+        inputs=[workspace_selector],
+        outputs=[
+            messages,
+            session_id,
+            artifacts,
+            status,
+            status_detail,
+            resolved_backend,
+            pending_image,
+            pending_image_name,
+            prompt,
+            history_radio,
+            chatbot,
+        ],
+        api_name=False,
+        show_api=False,
+    )
+    fork_btn.click(
+        _fork_session,
+        inputs=[messages, artifacts, workspace_selector],
         outputs=[
             messages,
             session_id,
@@ -672,7 +826,7 @@ with gr.Blocks(
     # History load
     history_radio.change(
         _load_session_into_state,
-        inputs=[history_radio],
+        inputs=[history_radio, workspace_selector],
         outputs=[
             messages,
             artifacts,
@@ -738,6 +892,7 @@ with gr.Blocks(
             artifacts,
             session_id,
             resolved_backend,
+            workspace_selector,
         ],
         outputs=[
             messages,
@@ -766,6 +921,7 @@ with gr.Blocks(
             artifacts,
             session_id,
             resolved_backend,
+            workspace_selector,
         ],
         outputs=[
             messages,
@@ -797,7 +953,7 @@ with gr.Blocks(
     for ev in (status, session_id):
         ev.change(
             _refresh_history,
-            inputs=[session_id],
+            inputs=[session_id, workspace_selector],
             outputs=[history_radio],
             api_name=False,
             show_api=False,
@@ -806,7 +962,7 @@ with gr.Blocks(
     # Initial history load
     demo.load(
         _refresh_history,
-        inputs=[session_id],
+        inputs=[session_id, workspace_selector],
         outputs=[history_radio],
         api_name=False,
         show_api=False,

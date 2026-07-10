@@ -1,5 +1,6 @@
 import base64
 import inspect
+import json
 from pathlib import Path
 
 # ===================== TDD CONTRACTS FOR GRADIO MIGRATION =====================
@@ -90,6 +91,13 @@ def test_decode_voice_audio_data_default_mime():
     audio_bytes, filename = decode_voice_audio_data(payload)
     assert audio_bytes == b"test"
     assert filename == "voice.webm"
+
+
+def test_session_timestamp_is_human_readable():
+    from app.app import _format_session_timestamp
+
+    assert _format_session_timestamp("20260710T185819Z") == "10 Jul 2026, 18:58 UTC"
+    assert _format_session_timestamp("unknown") == "unknown"
 
 
 def test_no_pyshiny_symbols_in_app():
@@ -210,3 +218,19 @@ def test_gradio_app_constructs():
 
     # Basic smoke: constructing the module must not raise and demo must be usable
     assert demo is not None
+
+
+def test_workspaces_filter_and_remember_session_membership(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _add_session_to_workspace, _create_workspace, get_sessions
+
+    session_dir = tmp_path / "sessions" / "session-a"
+    session_dir.mkdir(parents=True)
+    (session_dir / "request.json").write_text(json.dumps({"prompt": "Workspace test"}))
+
+    workspace_update = _create_workspace("Research")
+    workspace_id = workspace_update["value"]
+    _add_session_to_workspace(workspace_id, "session-a")
+
+    assert [session["id"] for session in get_sessions(workspace_id)] == ["session-a"]
+    assert get_sessions("general") == []

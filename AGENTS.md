@@ -6,8 +6,7 @@
 - **Reference**: See `prompts/SOUL.md` for the single source of truth regarding the system prompt.
 
 ## Project Structure & Module Organization
-- `scripts/` contains Python wrapper entrypoints for inference, filesystem-agent runs, and research helpers.
-- `llm/` wraps Python-side inference via `smolagents`.
+- `scripts/` contains Python wrapper entrypoints for filesystem-agent runs and research helpers.
 - `prompts/` stores reusable prompt strings.
 - `app/` contains the Gradio workbench.
 - `tests/` contains tests.
@@ -36,6 +35,6 @@
 - PRs should include testing notes and any relevant API or CLI examples.
 
 ## Configuration & Runtime Notes
-- Python-side inference expects `OPENROUTER_API_KEY` to be set.
+- Rust CLI inference expects `OPENROUTER_API_KEY` to be set.
 - Filesystem-agent execution expects a scriptable `alfred` binary to exist in `cli/`, `ALFRED_CLI_BIN`, or `PATH`.
 - Runtime session data is stored under `.alfred-runtime/`.

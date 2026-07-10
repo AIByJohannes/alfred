@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 
-from scripts.common import build_arg_parser, print_event, stream_llm_prompt
+from scripts.common import build_arg_parser, print_event
+from scripts.fs_agent import stream_filesystem_agent
 
 
 async def stream_chat(
@@ -12,13 +13,9 @@ async def stream_chat(
     session_id: str | None = None,
     image_base64: str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
-    request_payload = {"type": "chat", "image": bool(image_base64)}
-    async for payload in stream_llm_prompt(
-        prompt,
-        session_id=session_id,
-        request_payload=request_payload,
-        image_base64=image_base64,
-    ):
+    if image_base64:
+        prompt = f"{prompt}\n\n[An image attachment is present in the workbench UI.]"
+    async for payload in stream_filesystem_agent(prompt, session_id=session_id):
         yield payload
 
 

@@ -81,6 +81,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "camino",
+ "cersei",
  "dirs",
  "dunce",
  "serde",

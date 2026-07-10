@@ -14,7 +14,6 @@ classifiers = [
 dependencies = [
     "pydantic>=2.9.0,<3",
     "ddgs>=9.5.4,<10",
-    "smolagents[openai]>=1.0.0,<2",
     "gradio>=4.44.0,<6",
 ]
 
@@ -37,7 +36,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-    packages = ["llm", "prompts", "scripts", "transcription", "app"]
+    packages = ["prompts", "scripts", "transcription", "app"]
 
 [build-system]
 requires = ["hatchling"]

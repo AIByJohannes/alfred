@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import base64
-import binascii
-import io
 import json
 import os
 import shlex
@@ -15,11 +12,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from llm import LLMEngine
 from models import (
     FS_AGENT_BACKEND_ALFRED,
     FS_AGENT_BACKEND_AUTO,
-    FS_AGENT_BACKEND_SMOL,
     FsAgentBackend,
 )
 
@@ -143,7 +138,6 @@ def build_alfred_run_command(
         raise FileNotFoundError(
             "No scriptable `alfred` binary found. "
             "Set ALFRED_CLI_BIN or `cargo build -p alfred-cli` under cli/. "
-            "(Low-level helper; high-level agent streaming falls back to smolagents when absent.)"
         )
 
     command = [
@@ -160,15 +154,29 @@ def build_alfred_run_command(
     return command
 
 
+def build_alfred_acp_command(
+    cwd: str | None = None,
+    binary_override: Path | None = None,
+) -> list[str]:
+    binary = binary_override or resolve_alfred_binary()
+    if binary is None:
+        raise FileNotFoundError(
+            "No ACP-capable `alfred` binary found. "
+            "Set ALFRED_CLI_BIN or `cargo build -p alfred-cli` under cli/."
+        )
+
+    command = [str(binary), "acp"]
+    if cwd:
+        command.extend(["--cwd", cwd])
+    return command
+
+
 def select_fs_agent_backend(requested: FsAgentBackend) -> tuple[str, Path | None]:
     binary = resolve_alfred_binary()
     if requested in (FS_AGENT_BACKEND_AUTO, FS_AGENT_BACKEND_ALFRED):
         if binary:
             return FS_AGENT_BACKEND_ALFRED, binary
-        # No scriptable alfred binary present.
-        # AUTO and explicit "alfred-cli" both fall back to smolagents so the
-        # unified agent path (only mode) always works. cwd remains optional.
-    return FS_AGENT_BACKEND_SMOL, None
+    return FS_AGENT_BACKEND_ALFRED, None
 
 
 async def relay_subprocess(
@@ -273,6 +281,116 @@ async def relay_subprocess(
             append_message(session_dir, "assistant", "Task completed", status="done")
 
 
+async def relay_acp_subprocess(
+    command: list[str],
+    *,
+    session_dir: Path,
+    request_payload: dict[str, Any],
+    cwd: str | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Run Alfred's ACP stdio transport and persist the same session artifacts as JSONL."""
+    request_path = session_dir / "request.json"
+    events_path = session_dir / "events.ndjson"
+    result_path = session_dir / "result.json"
+    write_json(request_path, request_payload)
+
+    prompt = str(request_payload.get("prompt", ""))
+    if prompt:
+        append_message(session_dir, "user", prompt)
+
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        cwd=cwd or str(get_repo_root()),
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+
+    session_id = session_dir.name
+    cwd_value = cwd or str(get_repo_root())
+    for message in (
+        {"type": "session.start", "session_id": session_id, "cwd": cwd_value},
+        {"type": "prompt.send", "prompt": prompt},
+        {"type": "session.close"},
+    ):
+        process.stdin.write((json.dumps(message) + "\n").encode("utf-8"))
+    await process.stdin.drain()
+    process.stdin.close()
+
+    stderr_lines: list[str] = []
+
+    async def collect_stderr() -> None:
+        async for raw_line in process.stderr:
+            line = raw_line.decode("utf-8").strip()
+            if line:
+                stderr_lines.append(line)
+
+    stderr_task = asyncio.create_task(collect_stderr())
+    assistant_content = ""
+
+    async for raw_line in process.stdout:
+        line = raw_line.decode("utf-8").strip()
+        if not line:
+            continue
+
+        payload = parse_cli_event(line)
+        payload.setdefault("session_id", session_id)
+        append_jsonl(events_path, payload)
+
+        if payload["type"] == "delta":
+            assistant_content += str(payload.get("content", ""))
+        elif payload["type"] == "artifact" and payload.get("path"):
+            artifact_path = session_dir / "artifacts" / "manifest.json"
+            existing = []
+            if artifact_path.exists():
+                existing = json.loads(artifact_path.read_text(encoding="utf-8"))
+            existing.append(payload)
+            write_json(artifact_path, existing)
+        elif payload["type"] == "done":
+            write_json(result_path, payload)
+
+        yield payload
+
+    return_code = await process.wait()
+    await stderr_task
+    stderr = "\n".join(stderr_lines).strip()
+
+    if return_code != 0:
+        payload = event(
+            "error",
+            session_id=session_id,
+            message=stderr or f"`alfred acp` exited with status {return_code}",
+            exit_code=return_code,
+        )
+        append_jsonl(events_path, payload)
+        yield payload
+        if prompt:
+            append_message(session_dir, "assistant", payload["message"], status="error")
+        return
+
+    if stderr:
+        payload = event("error", session_id=session_id, message=stderr)
+        append_jsonl(events_path, payload)
+        yield payload
+
+    if not result_path.exists():
+        payload = event("done", session_id=session_id, result="completed")
+        write_json(result_path, payload)
+        append_jsonl(events_path, payload)
+        yield payload
+
+    if prompt:
+        append_message(
+            session_dir,
+            "assistant",
+            assistant_content or "Task completed",
+            status="done",
+        )
+
+
 def parse_cli_event(line: str) -> dict[str, Any]:
     try:
         payload = json.loads(line)
@@ -293,65 +411,3 @@ def build_arg_parser(
     if include_cwd:
         parser.add_argument("--cwd", dest="cwd")
     return parser
-
-
-async def stream_llm_prompt(
-    prompt: str,
-    *,
-    session_id: str | None = None,
-    request_payload: dict[str, Any] | None = None,
-    meta_extra: dict[str, Any] | None = None,
-    image_base64: str | None = None,
-) -> AsyncIterator[dict[str, Any]]:
-    from PIL import Image
-
-    session_id, session_dir = ensure_session(session_id)
-    events_path = session_dir / "events.ndjson"
-    payload = dict(request_payload or {})
-    payload.setdefault("type", "agent")
-    payload["prompt"] = prompt
-    payload["session_id"] = session_id
-    if image_base64:
-        payload["image"] = True
-    write_json(session_dir / "request.json", payload)
-
-    meta_payload = event("meta", session_id=session_id, **(meta_extra or {}))
-    append_jsonl(events_path, meta_payload)
-    yield meta_payload
-
-    image_path: Path | None = None
-    image_ref: str | None = None
-    if image_base64:
-        try:
-            image_data = base64.b64decode(image_base64, validate=True)
-            image = Image.open(io.BytesIO(image_data))
-            image.load()
-            image_ref = f"upload-{uuid4().hex[:8]}.png"
-            image_path = session_dir / image_ref
-            image.save(image_path)
-        except (ValueError, binascii.Error, OSError):
-            error_payload = event(
-                "error",
-                session_id=session_id,
-                message="Invalid image attachment.",
-            )
-            append_jsonl(events_path, error_payload)
-            yield error_payload
-            append_message(session_dir, "assistant", "", status="error", image_ref=None)
-            return
-
-    append_message(session_dir, "user", prompt, image_ref=image_ref)
-
-    engine = LLMEngine()
-    result = await asyncio.to_thread(engine.run, prompt, image_path=image_path)
-
-    delta = event("delta", session_id=session_id, content=result)
-    append_jsonl(events_path, delta)
-    yield delta
-
-    done = event("done", session_id=session_id, result=result)
-    append_jsonl(events_path, done)
-    write_json(session_dir / "result.json", done)
-    yield done
-
-    append_message(session_dir, "assistant", result, status="done")

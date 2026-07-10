@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codebase Research"
+  short_description: "Investigate a repository with evidence before changing it."
+  default_prompt: "Use $codebase-research to investigate this codebase task."

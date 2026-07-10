@@ -193,6 +193,7 @@ struct ActiveSession {
 
 async fn run_agent_loop(session: &mut ActiveSession, prompt: &str) {
     std::env::set_var("OPENROUTER_API_KEY", &session.api_key);
+    let config = Config::load().await.unwrap_or_default();
 
     let system_prompt = alfred_tools::config::load_system_prompt()
         .await
@@ -224,10 +225,20 @@ async fn run_agent_loop(session: &mut ActiveSession, prompt: &str) {
         }
     };
 
+    let mut tools = cersei::tools::coding();
+    tools.push(Box::new(
+        cersei::tools::skill_tool::SkillTool::new()
+            .with_project_root(&session.cwd)
+            .with_extra_path(session.cwd.join("skills")),
+    ));
+    if let Some(mcp_tool) = crate::mcp_bridge::connect_tool(&config.mcp_servers).await {
+        tools.push(mcp_tool);
+    }
+
     let agent = match cersei::Agent::builder()
         .provider_boxed(provider)
         .model(resolved_model)
-        .tools(cersei::tools::coding())
+        .tools(tools)
         .system_prompt(system_prompt)
         .working_dir(&session.cwd)
         .session_id(&session.session_id)
@@ -287,7 +298,7 @@ fn openrouter_model() -> String {
     let model = std::env::var("OPENROUTER_MODEL")
         .ok()
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "deepseek/deepseek-v4-flash".to_string());
+        .unwrap_or_else(|| "google/gemini-3.5-flash".to_string());
 
     if model.starts_with("openrouter/") {
         model

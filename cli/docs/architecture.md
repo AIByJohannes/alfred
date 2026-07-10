@@ -4,7 +4,7 @@ Alfred CLI is a cross-platform, open-source terminal agent that can chat, edit f
 
 ## Overview
 
-Alfred CLI provides (1) an interactive TUI, (2) an agent loop with tool/function calling, and (3) an optional RAG subsystem for repo/document retrieval. The UI layer uses `ratatui` + `crossterm`, and the runtime is async-first with `tokio`.
+Alfred CLI provides an interactive TUI, an agent loop with tool/function calling, and direct ripgrep-compatible code search. The UI layer uses `ratatui` + `crossterm`, and the runtime is async-first with `tokio`.
 
 ## Goals and non-goals
 
@@ -12,7 +12,7 @@ Alfred CLI provides (1) an interactive TUI, (2) an agent loop with tool/function
 
 - Fast interactive terminal UX (streaming tokens, cancel/abort, good history rendering).
 - Reliable function calling: schema-validated tool inputs/outputs, deterministic execution, audit logs.
-- Strong retrieval: hybrid (vector + lexical) search with query expansion and hierarchy-aware reranking.
+- Fast codebase context through `.gitignore`-aware lexical search.
 
 **Non-goals**
 
@@ -30,8 +30,6 @@ Alfred is split into crates to keep UI, agent logic, tools, and retrieval indepe
     - Conversation state, planner, tool registry, policy checks, streaming orchestration.
 - `alfred-tools` (tooling layer)
     - Filesystem tools (read/write/patch), shell tool (sandboxed), git tool, HTTP tool templates (see Function Calling section).
-- `alfred-rag` (retrieval layer)
-    - Chunking, indexing, hybrid retrieval, reranking, citations/attributions.
 - `alfred-node-bridge` (optional bridge)
     - FFI surface for npm-based distribution or Node integrations that spawn the native CLI.
 
@@ -44,11 +42,10 @@ Alfred is split into crates to keep UI, agent logic, tools, and retrieval indepe
 - Agent core builds a structured “task state” and selects either direct response or tool calls.
 - Tool calls stream status to TUI; abort signals cancel long-running operations cleanly.
 
-**RAG pipeline (repo + docs)**
+**Code search (repo + docs)**
 
-- Indexing: file-type aware chunking (code vs. Markdown vs. PDFs), with hierarchy-aware chunk IDs (repo → package → module → symbol).
-- Retrieval: hybrid search (BM25 + embeddings) + query expansion (synonyms, symbol variants, filename hints) + reranking.
-- Output: citations link back to file paths + line ranges; optional “evidence pane” in the TUI.
+- Search: Cersei's ripgrep-compatible tool searches tracked project content while respecting `.gitignore`.
+- Output: file-and-line matches give the agent direct context without maintaining a separate retrieval index.
 
 **Slash commands**
 

@@ -13,7 +13,6 @@ Alfred is a local-first Python orchestration repo. It provides a Gradio workbenc
 ```text
 alfred/
 ├── app/          # Gradio workbench
-├── llm/          # Python-side inference wrapper
 ├── prompts/      # Canonical system prompts
 ├── scripts/      # Python wrappers for inference, fs-agent, research
 ├── tests/        # Tests
@@ -23,9 +22,9 @@ alfred/
 
 ## Runtime Model
 
-- Python handles local orchestration, inference calls, web-grounded helper scripts, and filesystem session state.
-- The Rust `alfred` binary handles filesystem-capable agent execution.
-- Filesystem-agent calls support a `backend` selector (`auto`, `alfred-cli`, `smolagents`); the default `auto` prefers `alfred-cli` and falls back to `smolagents` when the binary is unavailable.
+- Python handles local orchestration, web-grounded helper scripts, and filesystem session state.
+- The Rust `alfred` binary runs every agent request through its Cersei ACP transport.
+- Filesystem-agent calls support `auto` and `alfred-cli`; both require an available Rust CLI binary.
 - The Gradio workbench imports Python wrappers directly.
 - Runtime state is stored under `.alfred-runtime/`.
 - Database support is optional and not part of the default path.
@@ -35,7 +34,7 @@ alfred/
 - Python 3.12+
 - `uv`
 - A built or installed `alfred` binary from `cli/target/debug/alfred`
-- `OPENROUTER_API_KEY` for Python-side inference
+- `OPENROUTER_API_KEY` for the Rust CLI's OpenRouter provider
 - Conda (for GPU/transcription features)
 
 ## Quick Start
@@ -130,5 +129,5 @@ See `.env.example` for transcription settings:
 ## Notes
 
 - `prompts/SOUL.md` is the canonical system prompt source.
-- `scripts/fs_agent.py` assumes a future non-interactive `alfred run` contract in `cli/`.
+- `scripts/fs_agent.py` connects to `alfred acp` over stdio.
 - The old Spring Boot, Next.js, and Postgres microservice setup has been retired from this repo.

@@ -19,13 +19,12 @@ This roadmap outlines the development trajectory for **A.L.F.R.E.D.**, moving fr
     *   [ ] `git`: Basic status checks.
 
 ## Phase 2: Intelligence & Context (Deepening)
-**Goal:** Empower the agent to understand the codebase through RAG and perform complex multi-step tasks.
+**Goal:** Empower the agent to understand the codebase through direct search and perform complex multi-step tasks.
 
-*   **RAG Subsystem (`alfred-rag`)**
-    *   [ ] Implement text chunking strategies (code vs. markdown).
-    *   [ ] Integrate a local embedding model (e.g., via `ort` or similar Rust-native inference).
-    *   [ ] Implement hybrid search (Vector + Keyword/BM25).
-    *   [ ] "Evidence Pane" in UI to show retrieved context citations.
+*   **Code Search**
+    *   [x] Use Cersei's ripgrep-compatible, `.gitignore`-aware search.
+    *   [ ] Surface file-and-line matches as citations in the TUI.
+    *   [ ] Add query refinement for symbols, filenames, and documentation.
 *   **Advanced Tooling**
     *   [ ] Interactive command handling (handling stdin/stdout streams better).
     *   [ ] `git`: Commit, Diff, Log analysis.
