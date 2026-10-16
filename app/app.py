@@ -618,9 +618,7 @@ def _fork_session(
 
 
 with gr.Blocks(
-    theme=gr.themes.Monochrome(),
     title="Alfred",
-    css=Path(__file__).parent.joinpath("style.css").read_text(),
     fill_height=True,
 ) as demo:
     messages = gr.State([])
@@ -631,129 +629,116 @@ with gr.Blocks(
     resolved_backend = gr.State(None)
     pending_image = gr.State(None)
     pending_image_name = gr.State(None)
-    sidebar_visible = gr.State(True)
 
-    with gr.Row():
-        with gr.Column(
-            scale=0, min_width=260, visible=True, elem_id="sidebar"
-        ) as sidebar_column:
-            gr.Markdown("## A.L.F.R.E.D.")
-            new_session_btn = gr.Button(
-                "New Chat",
-                elem_id="new_session_btn",
-                elem_classes=["btn-primary-custom", "w-100"],
+    with gr.Sidebar(width=280, position="left", open=True, elem_id="sidebar"):
+        gr.Markdown("## A.L.F.R.E.D.")
+        new_session_btn = gr.Button(
+            "New Chat",
+            elem_id="new_session_btn",
+            elem_classes=["btn-primary-custom", "w-100"],
+        )
+
+        cwd = gr.Textbox(
+            label="Working Directory (optional)",
+            placeholder="/path/to/repo",
+            elem_classes=["agent-settings-card"],
+        )
+        fs_backend = gr.Dropdown(
+            choices=["auto", "alfred-cli"],
+            value="auto",
+            label="Agent Backend",
+            elem_classes=["agent-settings-card"],
+        )
+        workspace_selector = gr.Dropdown(
+            choices=_workspace_choices(),
+            value=DEFAULT_WORKSPACE_ID,
+            label="Workspace",
+            elem_classes=["agent-settings-card"],
+        )
+        with gr.Row(elem_classes=["workspace-create-row"]):
+            workspace_name = gr.Textbox(
+                placeholder="New workspace",
+                show_label=False,
+                container=False,
+                min_width=0,
+                elem_classes=["workspace-name-input"],
+            )
+            create_workspace_btn = gr.Button(
+                "+", size="sm", scale=0, elem_id="create_workspace_btn", min_width=36
+            )
+        artifacts_html = gr.HTML(elem_classes=["artifacts-panel"])
+        gr.Markdown("### History")
+        history_radio = gr.Radio(
+            label="",
+            choices=[],
+            interactive=True,
+            elem_classes=["history-radio"],
+        )
+
+    with gr.Column(scale=1, elem_id="main-chat"):
+        with gr.Row(elem_classes=["header-row"]):
+            gr.Markdown("# Alfred Workspace", elem_classes=["header-title"])
+
+        with gr.Column(elem_classes=["chat-center-wrapper"]):
+            placeholder = (
+                "**Alfred Standing By.**\n\n"
+                "Greetings. I am Alfred, your Algorithmic Life-form Feigning "
+                "Real Emotional Depth.\n\n"
+                "Agent ready. Provide a prompt (cwd optional on left)."
+            )
+            chatbot = gr.Chatbot(
+                placeholder=placeholder,
+                elem_id="chatbot",
+                container=False,
+                show_label=False,
+                buttons=["copy"],
+                allow_tags=False,
+                avatar_images=(None, None),
+                autoscroll=True,
             )
 
-            cwd = gr.Textbox(
-                label="Working Directory (optional)",
-                placeholder="/path/to/repo",
-                elem_classes=["agent-settings-card"],
-            )
-            fs_backend = gr.Dropdown(
-                choices=["auto", "alfred-cli"],
-                value="auto",
-                label="Agent Backend",
-                elem_classes=["agent-settings-card"],
-            )
-            workspace_selector = gr.Dropdown(
-                choices=_workspace_choices(),
-                value=DEFAULT_WORKSPACE_ID,
-                label="Workspace",
-                elem_classes=["agent-settings-card"],
-            )
-            with gr.Row(elem_classes=["workspace-create-row"]):
-                workspace_name = gr.Textbox(
-                    placeholder="New workspace",
+            with gr.Row(elem_classes=["toolbar-row"]):
+                audio_upload = gr.UploadButton(
+                    "🎤 Voice Upload",
+                    file_types=["audio"],
+                    elem_classes=["toolbar-file-upload"],
+                )
+                voice_audio = gr.Audio(
+                    sources=["microphone"],
+                    type="filepath",
+                    label="",
                     show_label=False,
-                    container=False,
-                    min_width=0,
-                    elem_classes=["workspace-name-input"],
+                    elem_classes=["voice-audio"],
                 )
-                create_workspace_btn = gr.Button(
-                    "+", size="sm", scale=0, elem_id="create_workspace_btn", min_width=36
-                )
-            artifacts_html = gr.HTML(elem_classes=["artifacts-panel"])
-            gr.Markdown("### History")
-            history_radio = gr.Radio(
-                label="",
-                choices=[],
-                interactive=True,
-                elem_classes=["history-radio"],
+                pending_html = gr.HTML(elem_classes=["pending-upload"])
+                gr.HTML("<div style='flex-grow:1'></div>")
+                fork_btn = gr.Button("Fork", elem_classes=["btn-secondary-custom"])
+                clear_btn = gr.Button("Clear", elem_classes=["btn-secondary-custom"])
+
+            prompt = gr.MultimodalTextbox(
+                placeholder="Message Alfred...",
+                file_types=["image"],
+                sources=["upload"],
+                lines=1,
+                max_lines=7,
+                show_label=False,
+                autofocus=True,
+                elem_id="input-container",
+                submit_btn=True,
             )
-
-        with gr.Column(scale=1, elem_id="main-chat"):
-            with gr.Row(elem_classes=["header-row"]):
-                sidebar_toggle = gr.Button(
-                    "☰",
-                    elem_id="sidebar_toggle",
-                    elem_classes=["sidebar-toggle-btn"],
-                    scale=0,
-                    min_width=40,
-                )
-                gr.Markdown("# Alfred Workspace", elem_classes=["header-title"])
-
-            with gr.Column(elem_classes=["chat-center-wrapper"]):
-                placeholder = (
-                    "**Alfred Standing By.**\n\n"
-                    "Greetings. I am Alfred, your Algorithmic Life-form Feigning "
-                    "Real Emotional Depth.\n\n"
-                    "Agent ready. Provide a prompt (cwd optional on left)."
-                )
-                chatbot = gr.Chatbot(
-                    placeholder=placeholder,
-                    type="messages",
-                    elem_id="chatbot",
-                    container=False,
-                    show_label=False,
-                    show_copy_button=True,
-                    avatar_images=(None, None),
-                    autoscroll=True,
-                )
-
-                with gr.Row(elem_classes=["toolbar-row"]):
-                    audio_upload = gr.UploadButton(
-                        "🎤 Voice Upload",
-                        file_types=["audio"],
-                        elem_classes=["toolbar-file-upload"],
-                    )
-                    voice_audio = gr.Audio(
-                        sources=["microphone"],
-                        type="filepath",
-                        label="",
-                        show_label=False,
-                        elem_classes=["voice-audio"],
-                    )
-                    pending_html = gr.HTML(elem_classes=["pending-upload"])
-                    gr.HTML("<div style='flex-grow:1'></div>")
-                    fork_btn = gr.Button("Fork", elem_classes=["btn-secondary-custom"])
-                    clear_btn = gr.Button("Clear", elem_classes=["btn-secondary-custom"])
-
-                prompt = gr.MultimodalTextbox(
-                    placeholder="Message Alfred...",
-                    file_types=["image"],
-                    sources=["upload"],
-                    lines=1,
-                    max_lines=7,
-                    show_label=False,
-                    autofocus=True,
-                    elem_id="input-container",
-                    submit_btn=True,
-                )
 
     # Derived renders
     artifacts.change(
         _render_artifacts,
         inputs=[artifacts],
         outputs=[artifacts_html],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
     pending_image_name.change(
         _render_pending,
         inputs=[pending_image_name],
         outputs=[pending_html],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
     def _refresh_history(sid, workspace_id):
@@ -764,36 +749,21 @@ with gr.Blocks(
         choices, _ = _build_history_choices(None, workspace_id)
         return gr.update(choices=choices, value=None)
 
-    # Mobile collapse/expand toggle
-    def _toggle_sidebar(visible):
-        return not visible, gr.update(visible=not visible)
-
-    sidebar_toggle.click(
-        _toggle_sidebar,
-        inputs=[sidebar_visible],
-        outputs=[sidebar_visible, sidebar_column],
-        api_name=False,
-        show_api=False,
-    )
-
     create_workspace_btn.click(
         _create_workspace,
         inputs=[workspace_name],
         outputs=[workspace_selector],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     ).then(
         lambda: gr.update(value=""),
         outputs=[workspace_name],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
     workspace_selector.change(
         _change_workspace,
         inputs=[workspace_selector],
         outputs=[history_radio],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
     # New / Clear
@@ -813,8 +783,7 @@ with gr.Blocks(
             history_radio,
             chatbot,
         ],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
     clear_btn.click(
         lambda workspace_id: _clear_state("Workbench cleared.", workspace_id),
@@ -832,8 +801,7 @@ with gr.Blocks(
             history_radio,
             chatbot,
         ],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
     fork_btn.click(
         _fork_session,
@@ -851,8 +819,7 @@ with gr.Blocks(
             history_radio,
             chatbot,
         ],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
     # History load
@@ -871,8 +838,7 @@ with gr.Blocks(
             history_radio,
             chatbot,
         ],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
     # Audio file upload -> transcribe to prompt
@@ -880,8 +846,7 @@ with gr.Blocks(
         _transcribe_and_fill,
         inputs=[audio_upload, prompt],
         outputs=[prompt, status, status_detail],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
     # Microphone recording -> transcribe to prompt
@@ -889,8 +854,7 @@ with gr.Blocks(
         _transcribe_and_fill,
         inputs=[voice_audio, prompt],
         outputs=[prompt, status, status_detail],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
     # Send (MultimodalTextbox has its own submit/stop button)
@@ -920,8 +884,7 @@ with gr.Blocks(
             prompt,
             history_radio,
         ],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
     # Keep chatbot in sync with messages state
@@ -929,8 +892,7 @@ with gr.Blocks(
         lambda m: m,
         inputs=[messages],
         outputs=[chatbot],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
     # After any major action that may create new sessions, refresh history choices
@@ -939,8 +901,7 @@ with gr.Blocks(
             _refresh_history,
             inputs=[session_id, workspace_selector],
             outputs=[history_radio],
-            api_name=False,
-            show_api=False,
+            api_visibility="private",
         )
 
     # Initial history load
@@ -948,12 +909,16 @@ with gr.Blocks(
         _refresh_history,
         inputs=[session_id, workspace_selector],
         outputs=[history_radio],
-        api_name=False,
-        show_api=False,
+        api_visibility="private",
     )
 
 
 app = demo
 
 if __name__ == "__main__":
-    demo.launch(server_port=8501, show_api=False)
+    demo.launch(
+        server_port=8501,
+        theme=gr.themes.Monochrome(),
+        css=Path(__file__).parent.joinpath("style.css").read_text(),
+        footer_links=[],
+    )

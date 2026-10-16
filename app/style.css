@@ -15,6 +15,43 @@
   --input-bg: #2a2a2a;
 }
 
+/* Gradio 6 dark theme — override the theme's CSS variables so every component
+   (inputs, dropdowns, labels, panels, buttons) inherits the dark palette without
+   depending on internal component class names. */
+:root,
+.gradio-container {
+  --body-text-color: #e0e0e0 !important;
+  --background-fill-primary: #1e1e1e !important;
+  --background-fill-secondary: #2b2b2b !important;
+  --block-background-fill: transparent !important;
+  --block-border-color: #333 !important;
+  --block-label-text-color: #9aa0a6 !important;
+  --block-title-text-color: #9aa0a6 !important;
+  --block-title-text-weight: 500 !important;
+  --panel-background-fill: #1e1e1e !important;
+  --panel-border-color: #333 !important;
+  --border-color-primary: #333 !important;
+  --border-color-accent: #61afef !important;
+  --border-color-accent-subdued: rgba(97, 175, 239, 0.3) !important;
+  --color-accent: #61afef !important;
+  --color-accent-soft: rgba(97, 175, 239, 0.15) !important;
+  --input-background-fill: #2a2a2a !important;
+  --input-background-fill-focus: #2a2a2a !important;
+  --input-border-color: #333 !important;
+  --input-border-color-focus: #61afef !important;
+  --input-placeholder-color: #888 !important;
+  --link-text-color: #61afef !important;
+  --button-secondary-background-fill: transparent !important;
+  --button-secondary-background-fill-hover: rgba(255, 255, 255, 0.05) !important;
+  --button-secondary-border-color: #333 !important;
+  --button-secondary-text-color: #888 !important;
+  --button-secondary-text-color-hover: #e0e0e0 !important;
+  --checkbox-background-color-selected: #61afef !important;
+  --table-border-color: #333 !important;
+  --table-even-background-fill: #2b2b2b !important;
+  --error-text-color: #e06c75 !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -59,16 +96,10 @@ footer,
   border-radius: 0 !important;
 }
 
-/* Sidebar */
+/* Sidebar — native gr.Sidebar owns layout/toggle; we only match the theme. */
 #sidebar {
   background: var(--sidebar-bg) !important;
   border-right: 1px solid var(--panel-border) !important;
-  padding: 1.5rem 1rem !important;
-  height: 100% !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 1rem !important;
-  overflow-y: auto !important;
 }
 
 #sidebar h2 {
@@ -161,8 +192,8 @@ footer,
   justify-content: flex-start !important;
 }
 
-#chatbot .message-row [data-testid="user"],
-#chatbot .message-row [data-testid="bot"] {
+#chatbot .message-row .user,
+#chatbot .message-row .bot {
   display: flex !important;
   flex-direction: column !important;
   width: fit-content !important;
@@ -179,31 +210,27 @@ footer,
   box-shadow: none !important;
 }
 
-#chatbot .message-row [data-testid="user"] {
+#chatbot .message-row .user {
   background: var(--accent) !important;
   color: #fff !important;
   border-bottom-right-radius: 4px !important;
   align-self: flex-end !important;
 }
 
-#chatbot .message-row [data-testid="bot"] {
+#chatbot .message-row .bot {
   background: var(--user-bg) !important;
   color: var(--text) !important;
   border-bottom-left-radius: 4px !important;
   align-self: flex-start !important;
 }
 
-#chatbot .message-row [data-testid="user"] *,
-#chatbot .message-row [data-testid="bot"] * {
+#chatbot .message-row .user *,
+#chatbot .message-row .bot * {
   color: inherit !important;
 }
 
-/* Clean up copy/trash action icons (detach fix) */
-#chatbot .message-row .options,
-#chatbot .message-row .message-actions,
-#chatbot .message-row .feedback,
-#chatbot .message-row .feedback-buttons,
-#chatbot .message-row .action-buttons {
+/* Clean up copy action icons (detach fix) */
+#chatbot .message-row .message-buttons {
   position: static !important;
   display: inline-flex !important;
   flex-direction: row !important;
@@ -217,11 +244,8 @@ footer,
   border: none !important;
 }
 
-#chatbot .message-row .options button,
-#chatbot .message-row .message-actions button,
-#chatbot .message-row .feedback button,
-#chatbot .message-row .feedback-buttons button,
-#chatbot .message-row .action-buttons button {
+#chatbot .message-row .message-buttons button,
+#chatbot .message-row .message-buttons .icon-button {
   background: transparent !important;
   border: none !important;
   color: var(--text-muted) !important;
@@ -236,11 +260,8 @@ footer,
   border-radius: 4px !important;
 }
 
-#chatbot .message-row .options button:hover,
-#chatbot .message-row .message-actions button:hover,
-#chatbot .message-row .feedback button:hover,
-#chatbot .message-row .feedback-buttons button:hover,
-#chatbot .message-row .action-buttons button:hover {
+#chatbot .message-row .message-buttons button:hover,
+#chatbot .message-row .message-buttons .icon-button:hover {
   color: var(--accent) !important;
   background-color: rgba(255, 255, 255, 0.05) !important;
 }
@@ -256,12 +277,6 @@ footer,
   flex-shrink: 0 !important;
 }
 
-/* Align hamburger menu to the left by preventing wrapper growth */
-.header-row > div:has(.sidebar-toggle-btn) {
-  flex: none !important;
-  width: auto !important;
-}
-
 .header-row > div:has(.header-title) {
   flex: 1 !important;
 }
@@ -271,25 +286,6 @@ footer,
   font-weight: 600 !important;
   color: var(--accent) !important;
   margin: 0 !important;
-}
-
-.sidebar-toggle-btn {
-  background: transparent !important;
-  color: var(--text) !important;
-  border: none !important;
-  border-radius: 4px !important;
-  padding: 0.25rem 0.4rem !important;
-  font-size: 1.15rem !important;
-  cursor: pointer !important;
-  box-shadow: none !important;
-  min-width: unset !important;
-  width: auto !important;
-  line-height: 1 !important;
-}
-
-.sidebar-toggle-btn:hover {
-  background-color: rgba(97, 175, 239, 0.12) !important;
-  color: var(--accent) !important;
 }
 
 /* Chat input — stock MultimodalTextbox (rounded, auto-growing, built-in attach/submit).
@@ -333,8 +329,7 @@ footer,
   box-sizing: border-box !important;
 }
 
-.voice-audio button,
-.voice-audio .gr-button {
+.voice-audio button {
   white-space: nowrap !important;
   width: 100% !important;
   min-width: 0 !important;
@@ -343,8 +338,7 @@ footer,
   text-overflow: clip !important;
 }
 
-.voice-audio button > span,
-.voice-audio .gr-button > span {
+.voice-audio button > span {
   overflow: visible !important;
   text-overflow: clip !important;
   white-space: nowrap !important;
@@ -355,7 +349,6 @@ footer,
   cursor: pointer;
 }
 
-.toolbar-file-upload .gr-button,
 .toolbar-file-upload button {
   background: transparent !important;
   color: var(--text-muted) !important;
@@ -367,7 +360,7 @@ footer,
   box-shadow: none !important;
 }
 
-.toolbar-file-upload .gr-button:hover {
+.toolbar-file-upload button:hover {
   background: rgba(255,255,255,0.05) !important;
   border-color: var(--text-muted) !important;
   color: var(--text) !important;
@@ -389,56 +382,20 @@ footer,
   color: var(--text) !important;
 }
 
-/* Agent settings card */
-.agent-settings-card .gr-textbox > div,
-.agent-settings-card .gr-dropdown > div {
-  margin-bottom: 0.75rem !important;
+/* Agent settings card — generic element targeting (Gradio 6 DOM-agnostic) */
+#sidebar .agent-settings-card {
+  margin-bottom: 0.35rem !important;
 }
 
-.agent-settings-card .control-label {
-  color: var(--text-muted) !important;
-  font-size: 0.8rem !important;
-  font-weight: 500 !important;
-  margin-bottom: 0.25rem !important;
-}
-
-.agent-settings-card input.form-control,
-.agent-settings-card .gr-textbox input,
-.agent-settings-card .gr-textbox textarea {
-  background-color: rgba(255,255,255,0.05) !important;
-  border: 1px solid var(--panel-border) !important;
-  border-radius: 8px !important;
-  color: var(--text) !important;
+#sidebar .agent-settings-card input,
+#sidebar .agent-settings-card textarea {
   font-size: 0.85rem !important;
   padding: 0.5rem 0.7rem !important;
-  box-shadow: none !important;
-  height: auto !important;
-  min-height: unset !important;
-}
-
-.agent-settings-card input.form-control:focus,
-.agent-settings-card .gr-textbox textarea:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(97, 175, 239, 0.25) !important;
-}
-
-.agent-settings-card .form-select,
-.agent-settings-card select.form-control,
-.agent-settings-card .gr-dropdown select {
-  background-color: rgba(255,255,255,0.05) !important;
-  border: 1px solid var(--panel-border) !important;
   border-radius: 8px !important;
-  color: var(--text) !important;
-  font-size: 0.85rem !important;
-  padding: 0.5rem 0.7rem !important;
-  box-shadow: none !important;
-  height: auto !important;
-  min-height: unset !important;
 }
 
-.agent-settings-card .form-select:focus,
-.agent-settings-card select.form-control:focus {
-  border-color: var(--accent) !important;
+#sidebar .agent-settings-card input:focus,
+#sidebar .agent-settings-card textarea:focus {
   box-shadow: 0 0 0 2px rgba(97, 175, 239, 0.25) !important;
 }
 
@@ -569,14 +526,8 @@ footer,
 
 /* Responsive */
 @media (max-width: 768px) {
-  #sidebar {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  #chatbot .message-row [data-testid="user"],
-  #chatbot .message-row [data-testid="bot"] {
+  #chatbot .message-row .user,
+  #chatbot .message-row .bot {
     max-width: 90% !important;
   }
 
