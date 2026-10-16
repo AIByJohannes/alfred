@@ -303,12 +303,51 @@ def _load_session_into_state(
     )
 
 
-async def _transcribe_and_fill(audio_path: str, current_prompt: str) -> tuple[str, str, str]:
+def _parse_prompt_payload(payload: Any) -> tuple[str, list]:
+    """Accept a plain string (legacy Textbox) or a MultimodalTextbox dict."""
+    if payload is None:
+        return "", []
+    if isinstance(payload, str):
+        return payload, []
+    if isinstance(payload, dict):
+        text = payload.get("text") or ""
+        files = payload.get("files") or payload.get("data") or []
+        if not isinstance(files, list):
+            files = [files]
+        return (text if isinstance(text, str) else str(text)), files
+    return str(payload), []
+
+
+def _file_to_b64(entry: Any) -> tuple[str | None, str | None]:
+    try:
+        if isinstance(entry, dict):
+            raw = entry.get("path") or entry.get("url")
+            name = entry.get("orig_name") or entry.get("name") or "upload"
+        else:
+            raw = entry
+            name = "upload"
+        if raw is None:
+            return None, None
+        candidate = Path(str(raw))
+        if not candidate.exists():
+            return None, None
+        return base64.b64encode(candidate.read_bytes()).decode("utf-8"), candidate.name or str(name)
+    except Exception:
+        return None, None
+
+
+def _current_text(payload: Any) -> str:
+    text, _ = _parse_prompt_payload(payload)
+    return text
+
+
+async def _transcribe_and_fill(audio_path: str, current_prompt: Any) -> tuple[str, str, str]:
+    fallback = _current_text(current_prompt)
     if not audio_path:
-        return current_prompt, "idle", "Standing by."
+        return fallback, "idle", "Standing by."
     p = Path(audio_path)
     if not p.exists():
-        return current_prompt, "idle", "Standing by."
+        return fallback, "idle", "Standing by."
     audio_bytes = p.read_bytes()
     filename = p.name or "speech.webm"
 
@@ -323,13 +362,13 @@ async def _transcribe_and_fill(audio_path: str, current_prompt: str) -> tuple[st
         text = (result.text or "").strip()
         if text:
             return text, "idle", "Transcription ready."
-        return current_prompt, "idle", "Audio transcription empty."
+        return fallback, "idle", "Audio transcription empty."
     except Exception as e:
-        return current_prompt, "error", f"Transcription error: {e}"
+        return fallback, "error", f"Transcription error: {e}"
 
 
 async def _handle_send_stream(
-    prompt_text: str,
+    prompt_text: Any,
     current_msgs: list[dict],
     img_b64: str | None,
     cwd_val: str,
@@ -339,7 +378,14 @@ async def _handle_send_stream(
     current_res: str | None,
     workspace_id: str,
 ):
-    if not prompt_text or not str(prompt_text).strip():
+    prompt_str, attached_files = _parse_prompt_payload(prompt_text)
+    if attached_files and not img_b64:
+        for entry in attached_files:
+            converted, _ = _file_to_b64(entry)
+            if converted:
+                img_b64 = converted
+                break
+    if not prompt_str or not prompt_str.strip():
         choices, val = _build_history_choices(current_sid, workspace_id)
         yield (
             current_msgs,
@@ -356,9 +402,9 @@ async def _handle_send_stream(
         )
         return
 
-    user_content = prompt_text
+    user_content = prompt_str
     if img_b64:
-        user_content = f"![image](data:image/png;base64,{img_b64})\n\n{prompt_text}"
+        user_content = f"![image](data:image/png;base64,{img_b64})\n\n{prompt_str}"
 
     new_msgs = current_msgs + [{"role": "user", "content": user_content}]
     choices, val = _build_history_choices(current_sid, workspace_id)
@@ -372,11 +418,11 @@ async def _handle_send_stream(
         current_res,
         None,
         None,
-        gr.update(value=""),
+        gr.update(value={"text": "", "files": []}),
         gr.update(choices=choices, value=val),
     )
 
-    agent_prompt = prompt_text
+    agent_prompt = prompt_str
     if current_sid is None and current_msgs:
         transcript = "\n".join(
             f"{message.get('role', 'user').title()}: {message.get('content', '')}"
@@ -385,7 +431,7 @@ async def _handle_send_stream(
         agent_prompt = (
             "Continue this forked conversation. Treat the transcript as context, then answer "
             "the final user message.\n\n<conversation>\n"
-            f"{transcript}\n</conversation>\n\nFinal user message: {prompt_text}"
+            f"{transcript}\n</conversation>\n\nFinal user message: {prompt_str}"
         )
 
     gen = stream_filesystem_agent(
@@ -546,7 +592,7 @@ def _clear_state(msg: str, workspace_id: str = DEFAULT_WORKSPACE_ID):
         None,
         None,
         None,
-        gr.update(value=""),
+        gr.update(value={"text": "", "files": []}),
         gr.update(choices=choices, value=None),
         [],
     )
@@ -565,7 +611,7 @@ def _fork_session(
         None,
         None,
         None,
-        gr.update(value=""),
+        gr.update(value={"text": "", "files": []}),
         gr.update(choices=choices, value=None),
         current_msgs,
     )
@@ -682,31 +728,17 @@ with gr.Blocks(
                     fork_btn = gr.Button("Fork", elem_classes=["btn-secondary-custom"])
                     clear_btn = gr.Button("Clear", elem_classes=["btn-secondary-custom"])
 
-                with gr.Row(elem_id="input-container"):
-                    image_upload = gr.UploadButton(
-                        "📎",
-                        file_types=["image"],
-                        size="sm",
-                        elem_classes=["upload-btn-icon"],
-                        scale=0,
-                    )
-                    prompt = gr.Textbox(
-                        placeholder="Message Alfred...",
-                        container=False,
-                        show_label=False,
-                        scale=1,
-                        min_width=0,
-                        autofocus=True,
-                        lines=1,
-                        max_lines=7,
-                    )
-                    send_btn = gr.Button(
-                        "➤",
-                        size="sm",
-                        variant="primary",
-                        elem_classes=["btn-primary-custom"],
-                        scale=0,
-                    )
+                prompt = gr.MultimodalTextbox(
+                    placeholder="Message Alfred...",
+                    file_types=["image"],
+                    sources=["upload"],
+                    lines=1,
+                    max_lines=7,
+                    show_label=False,
+                    autofocus=True,
+                    elem_id="input-container",
+                    submit_btn=True,
+                )
 
     # Derived renders
     artifacts.change(
@@ -843,25 +875,6 @@ with gr.Blocks(
         show_api=False,
     )
 
-    # Image upload
-    def _handle_image(files):
-        if not files:
-            return None, None
-        p = files[0] if isinstance(files, list | tuple) else files
-        try:
-            b64 = base64.b64encode(Path(p).read_bytes()).decode("utf-8")
-            return b64, Path(p).name
-        except Exception:
-            return None, None
-
-    image_upload.upload(
-        _handle_image,
-        inputs=[image_upload],
-        outputs=[pending_image, pending_image_name],
-        api_name=False,
-        show_api=False,
-    )
-
     # Audio file upload -> transcribe to prompt
     audio_upload.upload(
         _transcribe_and_fill,
@@ -880,36 +893,7 @@ with gr.Blocks(
         show_api=False,
     )
 
-    # Send
-    send_btn.click(
-        _handle_send_stream,
-        inputs=[
-            prompt,
-            messages,
-            pending_image,
-            cwd,
-            fs_backend,
-            artifacts,
-            session_id,
-            resolved_backend,
-            workspace_selector,
-        ],
-        outputs=[
-            messages,
-            chatbot,
-            artifacts,
-            status,
-            status_detail,
-            session_id,
-            resolved_backend,
-            pending_image,
-            pending_image_name,
-            prompt,
-            history_radio,
-        ],
-        api_name=False,
-        show_api=False,
-    )
+    # Send (MultimodalTextbox has its own submit/stop button)
     prompt.submit(
         _handle_send_stream,
         inputs=[

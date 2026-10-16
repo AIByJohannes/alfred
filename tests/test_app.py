@@ -35,15 +35,15 @@ def test_app_has_core_controls():
     src = inspect.getsource(appmod)
 
     # Essential control names / labels must be present in the Gradio UI definition
-    # (updated for Gradio migration; no Shiny IDs remain)
+    # (MultimodalTextbox now provides text + image attach + submit natively,
+    # so separate image_upload / send_btn controls were removed.)
     required = [
         "prompt",
         "cwd",
         "fs_backend",
-        "image_upload",
+        "multimodal",
         "audio_upload",
         "voice_audio",
-        "send_btn",
         "clear_btn",
         "new_session_btn",
         "history_radio",
