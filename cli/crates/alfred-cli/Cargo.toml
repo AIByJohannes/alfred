@@ -22,6 +22,7 @@ tracing-subscriber.workspace = true
 alfred-core = { path = "../alfred-core" }
 alfred-tools = { path = "../alfred-tools" }
 tui-markdown = "0.3.7"
+unicode-width = "0.2"
 
 [[bin]]
 name = "alfred"

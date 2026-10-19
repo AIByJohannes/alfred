@@ -13,7 +13,7 @@ use crossterm::terminal::{
 use crossterm::{execute, terminal};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::style::{Color, Style, Stylize};
+use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Terminal;
@@ -24,15 +24,9 @@ mod acp;
 mod markdown;
 mod mcp_bridge;
 mod memory;
+mod tui;
 
-// OneDark Theme Colors
-const ONEDARK_BG: Color = Color::Rgb(40, 44, 52);
-const ONEDARK_FG: Color = Color::Rgb(171, 178, 191);
-const ONEDARK_RED: Color = Color::Rgb(224, 108, 117);
-const ONEDARK_GREEN: Color = Color::Rgb(152, 195, 121);
-const ONEDARK_BLUE: Color = Color::Rgb(97, 175, 239);
-const ONEDARK_MAGENTA: Color = Color::Rgb(198, 120, 221);
-const ONEDARK_CYAN: Color = Color::Rgb(86, 182, 194);
+use tui::{ONEDARK_BG, ONEDARK_BLUE, ONEDARK_FG, ONEDARK_GREEN, ONEDARK_RED};
 
 const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../../../prompts/SOUL.md");
 
@@ -111,30 +105,6 @@ impl App {
 
     fn finish_assistant(&mut self) {
         self.streaming_idx = None;
-    }
-
-    fn render_messages(&self) -> Text<'_> {
-        let mut lines = Vec::new();
-        for message in &self.messages {
-            let (label, color) = match message.role {
-                Role::User => ("You", ONEDARK_GREEN),
-                Role::Assistant => ("Alfred", ONEDARK_MAGENTA),
-                Role::System => ("System", ONEDARK_CYAN),
-                Role::Tool => ("Tool", ONEDARK_RED),
-            };
-
-            lines.push(Line::from(vec![Span::styled(
-                format!("{}: ", label),
-                Style::default().fg(color).bold(),
-            )]));
-
-            let content_lines =
-                markdown::render_markdown(&message.content, Style::default().fg(ONEDARK_FG));
-            lines.extend(content_lines);
-
-            lines.push(Line::from(""));
-        }
-        Text::from(lines)
     }
 }
 
@@ -452,32 +422,12 @@ async fn main() -> Result<()> {
                     frame.render_widget(input, chunks[1]);
                 }
                 AppMode::Chat => {
-                    let chunks = Layout::default()
-                        .direction(Direction::Vertical)
-                        .constraints([Constraint::Min(2), Constraint::Length(3)])
-                        .split(frame.size());
-
-                    let messages = Paragraph::new(app.render_messages())
-                        .block(
-                            Block::default()
-                                .borders(Borders::ALL)
-                                .title("Alfred")
-                                .border_style(Style::default().fg(ONEDARK_BLUE)),
-                        )
-                        .style(Style::default().fg(ONEDARK_FG).bg(ONEDARK_BG))
-                        .wrap(Wrap { trim: false })
-                        .scroll((app.scroll, 0));
-                    frame.render_widget(messages, chunks[0]);
-
-                    let input = Paragraph::new(format!("> {}", app.input))
-                        .block(
-                            Block::default()
-                                .borders(Borders::ALL)
-                                .title("Input")
-                                .border_style(Style::default().fg(ONEDARK_BLUE)),
-                        )
-                        .style(Style::default().fg(ONEDARK_GREEN).bg(ONEDARK_BG));
-                    frame.render_widget(input, chunks[1]);
+                    if tui::conversation_started(&app.messages) {
+                        let messages = tui::render_transcript(&app.messages);
+                        tui::draw_conversation(frame, &messages, &app.input, app.scroll);
+                    } else {
+                        tui::draw_welcome(frame, &app.input);
+                    }
                 }
             }
         })?;
