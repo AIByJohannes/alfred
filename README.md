@@ -65,6 +65,20 @@ python -m scripts.fs_agent "Refactor the logging layer" --cwd /path/to/repo
 python -m scripts.research "ACP protocol Python examples"
 ```
 
+## TUI
+
+Run the Rust terminal interface directly:
+
+```bash
+just cli-run
+# or: cli/target/debug/alfred
+```
+
+Type `/skills` to browse available skills, or `/<skill> [args]` to run one.
+Tool calls and results appear inline in the transcript, and `Esc` cancels an
+active run without exiting. See [docs/tui-shortcuts.md](docs/tui-shortcuts.md)
+for the full key map and documented differences from Claude Code.
+
 ## Environment
 
 See [`.env.example`](.env.example) for settings. The most important variables are:

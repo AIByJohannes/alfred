@@ -9,7 +9,7 @@ import sys
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from models import (
@@ -179,6 +179,26 @@ def select_fs_agent_backend(requested: FsAgentBackend) -> tuple[str, Path | None
     return FS_AGENT_BACKEND_ALFRED, None
 
 
+async def _stop_process(process: asyncio.subprocess.Process) -> None:
+    """Stop a CLI process on client cancellation without racing a normal exit."""
+    if process.returncode is not None:
+        return
+    try:
+        await asyncio.wait_for(process.wait(), timeout=0.2)
+        return
+    except TimeoutError:
+        pass
+    try:
+        process.terminate()
+    except ProcessLookupError:
+        return
+    try:
+        await asyncio.wait_for(process.wait(), timeout=5)
+    except TimeoutError:
+        process.kill()
+        await process.wait()
+
+
 async def relay_subprocess(
     command: list[str],
     *,
@@ -212,65 +232,73 @@ async def relay_subprocess(
         stderr=asyncio.subprocess.PIPE,
     )
 
-    assert process.stdout is not None
-    assert process.stderr is not None
+    stdout_stream = process.stdout
+    stderr_stream = process.stderr
+    assert stdout_stream is not None
+    assert stderr_stream is not None
 
     stderr_lines: list[str] = []
 
-    async def collect_stderr() -> None:
-        async for raw_line in process.stderr:
+    async def collect_stderr(stream: asyncio.StreamReader) -> None:
+        async for raw_line in stream:
             line = raw_line.decode("utf-8").strip()
             if line:
                 stderr_lines.append(line)
 
-    stderr_task = asyncio.create_task(collect_stderr())
+    stderr_task = asyncio.create_task(collect_stderr(stderr_stream))
 
-    async for raw_line in process.stdout:
-        line = raw_line.decode("utf-8").strip()
-        if not line:
-            continue
+    try:
+        async for raw_line in stdout_stream:
+            line = raw_line.decode("utf-8").strip()
+            if not line:
+                continue
 
-        payload = parse_cli_event(line)
-        append_jsonl(events_path, payload)
+            payload = parse_cli_event(line)
+            append_jsonl(events_path, payload)
 
-        if payload["type"] == "artifact" and payload.get("path"):
-            artifact_path = session_dir / "artifacts" / "manifest.json"
-            existing = []
-            if artifact_path.exists():
-                existing = json.loads(artifact_path.read_text(encoding="utf-8"))
-            existing.append(payload)
-            write_json(artifact_path, existing)
+            if payload["type"] == "artifact" and payload.get("path"):
+                artifact_path = session_dir / "artifacts" / "manifest.json"
+                existing = []
+                if artifact_path.exists():
+                    existing = json.loads(artifact_path.read_text(encoding="utf-8"))
+                existing.append(payload)
+                write_json(artifact_path, existing)
 
-        if payload["type"] == "done":
-            write_json(result_path, payload)
+            if payload["type"] == "done":
+                write_json(result_path, payload)
 
-        yield payload
+            yield payload
+    finally:
+        await _stop_process(process)
+        await stderr_task
 
-    return_code = await process.wait()
-    await stderr_task
-    stderr = "\n".join(stderr_lines).strip()
+    return_code = process.returncode or 0
+    stderr_text = "\n".join(stderr_lines).strip()
 
     if return_code != 0:
         error_payload = event(
             "error",
             session_id=session_dir.name,
-            message=stderr or f"`alfred run` exited with status {return_code}",
+            message=stderr_text or f"`alfred run` exited with status {return_code}",
             exit_code=return_code,
         )
         append_jsonl(events_path, error_payload)
         yield error_payload
         if prompt:
             append_message(
-                session_dir, "assistant", stderr or f"Exit code {return_code}", status="error"
+                session_dir,
+                "assistant",
+                stderr_text or f"Exit code {return_code}",
+                status="error",
             )
         return
 
-    if stderr:
-        note_payload = event("error", session_id=session_dir.name, message=stderr)
+    if stderr_text:
+        note_payload = event("error", session_id=session_dir.name, message=stderr_text)
         append_jsonl(events_path, note_payload)
         yield note_payload
         if prompt:
-            append_message(session_dir, "assistant", stderr, status="error")
+            append_message(session_dir, "assistant", stderr_text, status="error")
 
     if not result_path.exists():
         payload = event("done", session_id=session_dir.name, result="completed")
@@ -305,76 +333,99 @@ async def relay_acp_subprocess(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    assert process.stdin is not None
-    assert process.stdout is not None
-    assert process.stderr is not None
+    stdin_stream = process.stdin
+    stdout_stream = process.stdout
+    stderr_stream = process.stderr
+    assert stdin_stream is not None
+    assert stdout_stream is not None
+    assert stderr_stream is not None
 
     session_id = session_dir.name
     cwd_value = cwd or str(get_repo_root())
-    for message in (
-        {"type": "session.start", "session_id": session_id, "cwd": cwd_value},
-        {"type": "prompt.send", "prompt": prompt},
-        {"type": "session.close"},
-    ):
-        process.stdin.write((json.dumps(message) + "\n").encode("utf-8"))
-    await process.stdin.drain()
-    process.stdin.close()
+    images = request_payload.get("images") or []
+    prompt_message: dict[str, Any] = {"type": "prompt.send", "prompt": prompt}
+    if images:
+        prompt_message["images"] = images
 
     stderr_lines: list[str] = []
 
-    async def collect_stderr() -> None:
-        async for raw_line in process.stderr:
+    async def collect_stderr(stream: asyncio.StreamReader) -> None:
+        async for raw_line in stream:
             line = raw_line.decode("utf-8").strip()
             if line:
                 stderr_lines.append(line)
 
-    stderr_task = asyncio.create_task(collect_stderr())
+    stderr_task = asyncio.create_task(collect_stderr(stderr_stream))
     assistant_content = ""
+    assistant_saved = False
 
-    async for raw_line in process.stdout:
-        line = raw_line.decode("utf-8").strip()
-        if not line:
-            continue
+    try:
+        for message in (
+            {"type": "session.start", "session_id": session_id, "cwd": cwd_value},
+            prompt_message,
+            {"type": "session.close"},
+        ):
+            stdin_stream.write((json.dumps(message) + "\n").encode("utf-8"))
+        await stdin_stream.drain()
+        stdin_stream.close()
 
-        payload = parse_cli_event(line)
-        payload.setdefault("session_id", session_id)
-        append_jsonl(events_path, payload)
+        async for raw_line in stdout_stream:
+            line = raw_line.decode("utf-8").strip()
+            if not line:
+                continue
 
-        if payload["type"] == "delta":
-            assistant_content += str(payload.get("content", ""))
-        elif payload["type"] == "artifact" and payload.get("path"):
-            artifact_path = session_dir / "artifacts" / "manifest.json"
-            existing = []
-            if artifact_path.exists():
-                existing = json.loads(artifact_path.read_text(encoding="utf-8"))
-            existing.append(payload)
-            write_json(artifact_path, existing)
-        elif payload["type"] == "done":
-            write_json(result_path, payload)
+            payload = parse_cli_event(line)
+            payload.setdefault("session_id", session_id)
+            append_jsonl(events_path, payload)
 
-        yield payload
+            if payload["type"] == "delta":
+                assistant_content += str(payload.get("content", ""))
+            elif payload["type"] == "artifact" and payload.get("path"):
+                artifact_path = session_dir / "artifacts" / "manifest.json"
+                existing = []
+                if artifact_path.exists():
+                    existing = json.loads(artifact_path.read_text(encoding="utf-8"))
+                existing.append(payload)
+                write_json(artifact_path, existing)
+            elif payload["type"] == "done":
+                write_json(result_path, payload)
+                if prompt:
+                    append_message(
+                        session_dir,
+                        "assistant",
+                        assistant_content or payload.get("result") or "Task completed",
+                        status="done",
+                    )
+                    assistant_saved = True
+            elif payload["type"] == "error" and prompt:
+                append_message(
+                    session_dir,
+                    "assistant",
+                    str(payload.get("message") or "Run failed"),
+                    status="error",
+                )
+                assistant_saved = True
 
-    return_code = await process.wait()
-    await stderr_task
-    stderr = "\n".join(stderr_lines).strip()
+            yield payload
+    finally:
+        await _stop_process(process)
+        await stderr_task
+
+    return_code = process.returncode or 0
+    stderr_text = "\n".join(stderr_lines).strip()
 
     if return_code != 0:
         payload = event(
             "error",
             session_id=session_id,
-            message=stderr or f"`alfred acp` exited with status {return_code}",
+            message=stderr_text or f"`alfred acp` exited with status {return_code}",
             exit_code=return_code,
         )
         append_jsonl(events_path, payload)
         yield payload
-        if prompt:
+        if prompt and not assistant_saved:
             append_message(session_dir, "assistant", payload["message"], status="error")
         return
-
-    if stderr:
-        payload = event("error", session_id=session_id, message=stderr)
-        append_jsonl(events_path, payload)
-        yield payload
 
     if not result_path.exists():
         payload = event("done", session_id=session_id, result="completed")
@@ -382,7 +433,7 @@ async def relay_acp_subprocess(
         append_jsonl(events_path, payload)
         yield payload
 
-    if prompt:
+    if prompt and not assistant_saved:
         append_message(
             session_dir,
             "assistant",
@@ -399,7 +450,7 @@ def parse_cli_event(line: str) -> dict[str, Any]:
 
     if "type" not in payload:
         payload["type"] = "delta"
-    return payload
+    return cast(dict[str, Any], payload)
 
 
 def build_arg_parser(

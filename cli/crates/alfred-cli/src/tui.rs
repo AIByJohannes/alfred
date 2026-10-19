@@ -4,7 +4,7 @@ use alfred_core::{Message, Role};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
@@ -19,6 +19,13 @@ const MAX_WELCOME_WIDTH: u16 = 80;
 const INPUT_PREFIX: &str = "> ";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunStatus {
+    Idle,
+    Running,
+    Cancelling,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChatLayout {
     pub transcript: Option<Rect>,
     pub composer: Rect,
@@ -31,11 +38,11 @@ pub struct WelcomeLayout {
     pub hints: Option<Rect>,
 }
 
-/// Whether the user has sent at least one message in this session.
+/// Whether the transcript has anything worth showing beyond the system prompt.
 pub fn conversation_started(messages: &[Message]) -> bool {
     messages
         .iter()
-        .any(|message| matches!(message.role, Role::User))
+        .any(|message| !matches!(message.role, Role::System))
 }
 
 pub fn chat_layout(area: Rect) -> ChatLayout {
@@ -94,7 +101,7 @@ pub fn welcome_layout(area: Rect) -> WelcomeLayout {
     }
 }
 
-pub fn draw_welcome(frame: &mut Frame, input: &str) {
+pub fn draw_welcome(frame: &mut Frame, input: &str, suggestions: &[String]) {
     let layout = welcome_layout(frame.size());
 
     if let Some(heading) = layout.heading {
@@ -123,6 +130,8 @@ pub fn draw_welcome(frame: &mut Frame, input: &str) {
             Paragraph::new(Line::from(vec![
                 Span::styled("Enter", Style::default().fg(ONEDARK_FG).bold()),
                 Span::styled(" send  ·  ", Style::default().fg(ONEDARK_FG)),
+                Span::styled("/skills", Style::default().fg(ONEDARK_FG).bold()),
+                Span::styled(" browse  ·  ", Style::default().fg(ONEDARK_FG)),
                 Span::styled("Esc / Ctrl+C", Style::default().fg(ONEDARK_FG).bold()),
                 Span::styled(" exit", Style::default().fg(ONEDARK_FG)),
             ]))
@@ -131,28 +140,94 @@ pub fn draw_welcome(frame: &mut Frame, input: &str) {
             hints,
         );
     }
+
+    draw_suggestions(frame, layout.composer, suggestions);
 }
 
-pub fn draw_conversation(frame: &mut Frame, messages: &Text<'_>, input: &str, scroll: u16) {
+pub fn draw_conversation(
+    frame: &mut Frame,
+    messages: &Text<'_>,
+    input: &str,
+    scroll: u16,
+    suggestions: &[String],
+    status: RunStatus,
+    follow: bool,
+) -> u16 {
     let layout = chat_layout(frame.size());
+    let mut max_scroll = 0;
 
     if let Some(transcript) = layout.transcript {
-        frame.render_widget(
-            Paragraph::new(messages.clone())
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title("Alfred")
-                        .border_style(Style::default().fg(ONEDARK_BLUE)),
-                )
-                .style(Style::default().fg(ONEDARK_FG).bg(ONEDARK_BG))
-                .wrap(Wrap { trim: false })
-                .scroll((scroll, 0)),
-            transcript,
-        );
+        let paragraph = Paragraph::new(messages.clone())
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Alfred")
+                    .border_style(Style::default().fg(ONEDARK_BLUE)),
+            )
+            .style(Style::default().fg(ONEDARK_FG).bg(ONEDARK_BG))
+            .wrap(Wrap { trim: false });
+        let width = transcript.width.saturating_sub(2);
+        let viewport = transcript.height.saturating_sub(2) as usize;
+        max_scroll = paragraph
+            .line_count(width)
+            .saturating_sub(viewport)
+            .min(u16::MAX as usize) as u16;
+        let offset = if follow {
+            max_scroll
+        } else {
+            scroll.min(max_scroll)
+        };
+
+        frame.render_widget(paragraph.scroll((offset, 0)), transcript);
     }
 
-    draw_composer(frame, layout.composer, input, "Input");
+    let title = match status {
+        RunStatus::Cancelling => "Input · cancelling…",
+        RunStatus::Running => "Input · Esc to cancel",
+        RunStatus::Idle => "Input",
+    };
+    draw_composer(frame, layout.composer, input, title);
+    draw_suggestions(frame, layout.composer, suggestions);
+    max_scroll
+}
+
+fn draw_suggestions(frame: &mut Frame, composer: Rect, suggestions: &[String]) {
+    if suggestions.is_empty() || composer.y == 0 || composer.width < 12 {
+        return;
+    }
+
+    let content_rows = (suggestions.len() as u16).min(6);
+    let rows = (content_rows + 2).min(composer.y);
+    if rows < 3 {
+        return;
+    }
+    let visible_rows = rows - 2;
+
+    let width = composer.width.min(72);
+    let x = composer.x + (composer.width - width) / 2;
+    let rect = Rect::new(x, composer.y - rows, width, rows);
+    let lines = suggestions
+        .iter()
+        .take(visible_rows as usize)
+        .map(|suggestion| {
+            Line::from(Span::styled(
+                suggestion.clone(),
+                Style::default().fg(ONEDARK_FG).bg(ONEDARK_BG),
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    frame.render_widget(Clear, rect);
+    frame.render_widget(
+        Paragraph::new(Text::from(lines))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(ONEDARK_BLUE)),
+            )
+            .style(Style::default().bg(ONEDARK_BG)),
+        rect,
+    );
 }
 
 pub fn render_transcript(messages: &[Message]) -> Text<'static> {
@@ -278,17 +353,23 @@ mod tests {
 
     fn render_welcome(width: u16, height: u16, input: &str) -> Terminal<TestBackend> {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-        terminal.draw(|frame| draw_welcome(frame, input)).unwrap();
+        terminal
+            .draw(|frame| draw_welcome(frame, input, &[]))
+            .unwrap();
         terminal
     }
 
     #[test]
-    fn detects_first_user_message() {
+    fn detects_first_visible_message() {
         assert!(!conversation_started(&[]));
         assert!(!conversation_started(&[message(Role::System, "prompt")]));
         assert!(conversation_started(&[
             message(Role::System, "prompt"),
             message(Role::User, "hello"),
+        ]));
+        assert!(conversation_started(&[
+            message(Role::System, "prompt"),
+            message(Role::Assistant, "Skills listed"),
         ]));
     }
 
@@ -368,7 +449,9 @@ mod tests {
         let messages = Text::from(vec![Line::from("first user message")]);
         let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
         terminal
-            .draw(|frame| draw_conversation(frame, &messages, "typing", 0))
+            .draw(|frame| {
+                draw_conversation(frame, &messages, "typing", 0, &[], RunStatus::Idle, true);
+            })
             .unwrap();
 
         let text = buffer_text(&terminal);
@@ -390,6 +473,19 @@ mod tests {
     #[test]
     fn zero_sized_terminal_does_not_panic() {
         let mut terminal = Terminal::new(TestBackend::new(0, 0)).unwrap();
-        terminal.draw(|frame| draw_welcome(frame, "hello")).unwrap();
+        terminal
+            .draw(|frame| draw_welcome(frame, "hello", &[]))
+            .unwrap();
+    }
+
+    #[test]
+    fn slash_suggestions_render_above_composer() {
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| draw_welcome(frame, "/", &["/skills — list skills".to_string()]))
+            .unwrap();
+
+        let text = buffer_text(&terminal);
+        assert!(text.contains("/skills"));
     }
 }

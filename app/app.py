@@ -4,11 +4,12 @@ import html
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import gradio as gr
 
+from models import FsAgentBackend
 from scripts.common import get_runtime_root, get_sessions_root
 from scripts.fs_agent import stream_filesystem_agent
 
@@ -248,42 +249,98 @@ def _load_session_into_state(
     new_artifacts: list[dict] = [ev for ev in events if ev.get("type") == "artifact"]
     run_failed = any(ev.get("type") == "error" for ev in events)
 
+    def history_message(msg: dict) -> dict | None:
+        image_b64 = None
+        if msg.get("image_ref"):
+            img_path = session_dir / msg["image_ref"]
+            if img_path.exists():
+                try:
+                    image_b64 = base64.b64encode(img_path.read_bytes()).decode("utf-8")
+                except Exception:
+                    pass
+        content = str(msg.get("content", ""))
+        if image_b64:
+            prefix = f"![image](data:image/png;base64,{image_b64})\n\n"
+            content = (prefix + content) if content else prefix
+        if not content.strip():
+            return None
+        return {
+            "role": msg["role"],
+            "content": content,
+            "status": msg.get("status"),
+        }
+
+    def event_segments() -> list[list[dict]]:
+        segments: list[list[dict]] = []
+        current: list[dict] = []
+        for ev in events:
+            event_type = ev.get("type")
+            if event_type == "meta" and current:
+                segments.append(current)
+                current = []
+            current.append(ev)
+            if event_type == "done":
+                segments.append(current)
+                current = []
+        if current:
+            segments.append(current)
+        return segments
+
     if messages_list:
-        for msg in messages_list:
-            image_b64 = None
-            if msg.get("image_ref"):
-                img_path = session_dir / msg["image_ref"]
-                if img_path.exists():
-                    try:
-                        image_b64 = base64.b64encode(img_path.read_bytes()).decode("utf-8")
-                    except Exception:
-                        pass
-            content = msg["content"]
-            if image_b64:
-                prefix = f"![image](data:image/png;base64,{image_b64})\n\n"
-                content = (prefix + content) if content else prefix
-            if str(content).strip():
-                new_msgs.append(
-                    {
-                        "role": msg["role"],
-                        "content": content,
-                        "status": msg.get("status"),
-                    }
+        users = [msg for msg in messages_list if msg.get("role") == "user"]
+        assistants = [msg for msg in messages_list if msg.get("role") == "assistant"]
+        segments = event_segments()
+
+        if users and len(users) == len(segments):
+            # Replay each run in event order so tool activity stays between the
+            # assistant deltas that actually preceded and followed it.
+            for index, (user, segment) in enumerate(zip(users, segments, strict=True)):
+                segment_start = len(new_msgs)
+                user_message = history_message(user)
+                if user_message:
+                    new_msgs.append(user_message)
+
+                had_delta = False
+                for ev in segment:
+                    event_type = ev.get("type")
+                    if event_type == "delta":
+                        text = read_text(ev)
+                        if text:
+                            new_msgs = _append_assistant_delta(new_msgs, text)
+                            had_delta = True
+                    elif event_type in {"tool_request", "tool_result"}:
+                        phase = "request" if event_type == "tool_request" else "result"
+                        new_msgs = new_msgs + [_tool_event_message(ev, phase)]
+
+                segment_failed = any(ev.get("type") == "error" for ev in segment)
+                if not had_delta and index < len(assistants):
+                    assistant_message = history_message(assistants[index])
+                    if assistant_message:
+                        assistant_message["status"] = (
+                            "error" if segment_failed else "done"
+                        )
+                        new_msgs.append(assistant_message)
+                _mark_last_assistant(
+                    new_msgs, "error" if segment_failed else "done", segment_start
                 )
-        # messages.ndjson stores turns written by the wrapper and may contain only
-        # the user prompt; the assistant reply is reconstructed from stream events.
-        if not any(message.get("role") == "assistant" for message in new_msgs):
-            assistant_content = "".join(
-                read_text(ev) for ev in events if ev.get("type") == "delta"
-            )
-            if assistant_content.strip():
-                new_msgs.append(
-                    {
-                        "role": "assistant",
-                        "content": assistant_content,
-                        "status": "error" if run_failed else "done",
-                    }
+        else:
+            for msg in messages_list:
+                message = history_message(msg)
+                if message:
+                    new_msgs.append(message)
+            if not any(message.get("role") == "assistant" for message in new_msgs):
+                assistant_content = "".join(
+                    read_text(ev) for ev in events if ev.get("type") == "delta"
                 )
+                if assistant_content.strip():
+                    new_msgs.append(
+                        {
+                            "role": "assistant",
+                            "content": assistant_content,
+                            "status": "error" if run_failed else "done",
+                        }
+                    )
+            new_msgs.extend(_tool_messages_from_events(events))
     else:
         user_prompt = meta.get("prompt", "Loaded session")
         assistant_content = ""
@@ -310,6 +367,9 @@ def _load_session_into_state(
                     "status": "error" if run_failed else "done",
                 }
             )
+        new_msgs = _insert_tool_activity(
+            new_msgs, _tool_messages_from_events(events)
+        )
 
     choices, _ = _build_history_choices(sid, workspace_id)
     return (
@@ -359,6 +419,110 @@ def _file_to_b64(entry: Any) -> tuple[str | None, str | None]:
         return None, None
 
 
+_IMAGE_MIME_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+}
+
+
+def _file_to_image(entry: Any) -> dict[str, str] | None:
+    """Read an uploaded image into the ACP attachment shape."""
+    data, name = _file_to_b64(entry)
+    if not data:
+        return None
+    suffix = Path(str(name or "")).suffix.lower()
+    media_type = _IMAGE_MIME_TYPES.get(suffix)
+    if media_type is None:
+        return None
+    return {"media_type": media_type, "data": data}
+
+
+def _fence(value: str, language: str = "text") -> str:
+    safe = value.replace("```", "'''")
+    return f"```{language}\n{safe}\n```"
+
+
+def _truncate(value: str, limit: int) -> str:
+    return value if len(value) <= limit else value[:limit] + "\n… (truncated)"
+
+
+def _tool_event_message(event: dict, phase: str) -> dict:
+    name = str(event.get("name") or "tool")
+    if phase == "request":
+        arguments = event.get("arguments", "")
+        if not isinstance(arguments, str):
+            try:
+                arguments = json.dumps(arguments, indent=2, ensure_ascii=False)
+            except (TypeError, ValueError):
+                arguments = str(arguments)
+        content = f"🔧 **{name}**\n\n{_fence(_truncate(arguments, 2000), 'json')}"
+        return {
+            "role": "assistant",
+            "kind": "tool",
+            "content": content,
+            "status": "running",
+        }
+
+    is_error = str(event.get("is_error", "false")).lower() == "true"
+    output = str(event.get("output", ""))
+    marker = "❌" if is_error else "✅"
+    content = f"{marker} **{name}**\n\n{_fence(_truncate(output, 4000))}"
+    return {
+        "role": "assistant",
+        "kind": "tool",
+        "content": content,
+        "status": "error" if is_error else "done",
+    }
+
+
+def _tool_messages_from_events(events: list[dict]) -> list[dict]:
+    messages: list[dict] = []
+    for event in events:
+        event_type = event.get("type")
+        if event_type == "tool_request":
+            messages.append(_tool_event_message(event, "request"))
+        elif event_type == "tool_result":
+            messages.append(_tool_event_message(event, "result"))
+    return messages
+
+
+def _insert_tool_activity(
+    messages: list[dict], tool_messages: list[dict]
+) -> list[dict]:
+    if not tool_messages:
+        return messages
+    for index in range(len(messages) - 1, -1, -1):
+        if messages[index].get("role") == "assistant":
+            return messages[:index] + tool_messages + messages[index:]
+    return messages + tool_messages
+
+
+def _mark_last_assistant(
+    messages: list[dict], status: str, start: int = 0
+) -> None:
+    for message in reversed(messages[start:]):
+        if message.get("role") == "assistant" and message.get("kind") != "tool":
+            message["status"] = status
+            return
+
+
+def _append_assistant_delta(messages: list[dict], text: str) -> list[dict]:
+    if (
+        messages
+        and messages[-1].get("role") == "assistant"
+        and messages[-1].get("kind") != "tool"
+    ):
+        messages[-1]["content"] = str(messages[-1].get("content", "")) + text
+        return messages
+    return messages + [
+        {"role": "assistant", "content": text, "status": "running"}
+    ]
+
+
 def _current_text(payload: Any) -> str:
     text, _ = _parse_prompt_payload(payload)
     return text
@@ -402,12 +566,26 @@ async def _handle_send_stream(
     workspace_id: str,
 ):
     prompt_str, attached_files = _parse_prompt_payload(prompt_text)
-    if attached_files and not img_b64:
-        for entry in attached_files:
-            converted, _ = _file_to_b64(entry)
-            if converted:
-                img_b64 = converted
-                break
+    images = [image for entry in attached_files if (image := _file_to_image(entry))]
+    if not images and img_b64:
+        images = [{"media_type": "image/png", "data": img_b64}]
+    if attached_files and len(images) != len(attached_files):
+        choices, val = _build_history_choices(current_sid, workspace_id)
+        yield (
+            current_msgs,
+            current_msgs,
+            current_artifacts,
+            "error",
+            "One or more attachments could not be read. Remove them or use "
+            "PNG, JPEG, WebP, GIF, or BMP.",
+            current_sid,
+            current_res,
+            None,
+            None,
+            gr.update(),
+            gr.update(choices=choices, value=val),
+        )
+        return
     if not prompt_str or not prompt_str.strip():
         choices, val = _build_history_choices(current_sid, workspace_id)
         yield (
@@ -426,8 +604,12 @@ async def _handle_send_stream(
         return
 
     user_content = prompt_str
-    if img_b64:
-        user_content = f"![image](data:image/png;base64,{img_b64})\n\n{prompt_str}"
+    if images:
+        preview = "".join(
+            f"![image](data:{image['media_type']};base64,{image['data']})\n\n"
+            for image in images[:1]
+        )
+        user_content = preview + prompt_str
 
     new_msgs = current_msgs + [{"role": "user", "content": user_content}]
     choices, val = _build_history_choices(current_sid, workspace_id)
@@ -461,10 +643,10 @@ async def _handle_send_stream(
         agent_prompt,
         cwd=cwd_val or None,
         session_id=current_sid,
-        backend=backend_val,
+        backend=cast(FsAgentBackend, backend_val),
+        images=images or None,
     )
 
-    content = ""
     new_arts = list(current_artifacts)
     new_sid = current_sid
     res_b = current_res
@@ -473,8 +655,8 @@ async def _handle_send_stream(
         async for event in gen:
             et = event.get("type", "")
             if et == "meta":
-                new_sid = event.get("session_id", new_sid)
-                res_b = event.get("backend", res_b)
+                new_sid = str(event.get("session_id") or new_sid)
+                res_b = str(event.get("backend") or res_b)
                 if new_sid:
                     _add_session_to_workspace(workspace_id, new_sid)
                 choices, val = _build_history_choices(new_sid, workspace_id)
@@ -494,13 +676,7 @@ async def _handle_send_stream(
             elif et == "delta":
                 text = read_text(event)
                 if text:
-                    content += text
-                    if new_msgs and new_msgs[-1].get("role") == "assistant":
-                        new_msgs[-1]["content"] = content
-                    else:
-                        new_msgs = new_msgs + [
-                            {"role": "assistant", "content": content, "status": "running"}
-                        ]
+                    new_msgs = _append_assistant_delta(new_msgs, text)
                     choices, val = _build_history_choices(new_sid, workspace_id)
                     yield (
                         new_msgs,
@@ -515,6 +691,43 @@ async def _handle_send_stream(
                         gr.update(),
                         gr.update(choices=choices, value=val),
                     )
+            elif et == "tool_request":
+                new_msgs = new_msgs + [_tool_event_message(event, "request")]
+                choices, val = _build_history_choices(new_sid, workspace_id)
+                yield (
+                    new_msgs,
+                    new_msgs,
+                    new_arts,
+                    "running",
+                    f"Running {event.get('name', 'tool')}...",
+                    new_sid,
+                    res_b,
+                    None,
+                    None,
+                    gr.update(),
+                    gr.update(choices=choices, value=val),
+                )
+            elif et == "tool_result":
+                new_msgs = new_msgs + [_tool_event_message(event, "result")]
+                is_error = str(event.get("is_error", "false")).lower() == "true"
+                choices, val = _build_history_choices(new_sid, workspace_id)
+                yield (
+                    new_msgs,
+                    new_msgs,
+                    new_arts,
+                    "error" if is_error else "running",
+                    (
+                        f"{event.get('name', 'tool')} failed."
+                        if is_error
+                        else "Alfred is processing your query..."
+                    ),
+                    new_sid,
+                    res_b,
+                    None,
+                    None,
+                    gr.update(),
+                    gr.update(choices=choices, value=val),
+                )
             elif et == "artifact":
                 new_arts = new_arts + [event]
                 choices, val = _build_history_choices(new_sid, workspace_id)
@@ -533,8 +746,7 @@ async def _handle_send_stream(
                 )
             elif et == "done":
                 msg = event.get("result") or event.get("message") or "Run complete."
-                if new_msgs and new_msgs[-1].get("role") == "assistant":
-                    new_msgs[-1]["status"] = "done"
+                _mark_last_assistant(new_msgs, "done")
                 choices, val = _build_history_choices(new_sid, workspace_id)
                 yield (
                     new_msgs,
@@ -552,8 +764,7 @@ async def _handle_send_stream(
                 return
             elif et == "error":
                 msg = event.get("message") or "The run failed."
-                if new_msgs and new_msgs[-1].get("role") == "assistant":
-                    new_msgs[-1]["status"] = "error"
+                _mark_last_assistant(new_msgs, "error")
                 choices, val = _build_history_choices(new_sid, workspace_id)
                 yield (
                     new_msgs,
@@ -569,8 +780,7 @@ async def _handle_send_stream(
                     gr.update(choices=choices, value=val),
                 )
                 return
-        if new_msgs and new_msgs[-1].get("role") == "assistant":
-            new_msgs[-1]["status"] = "done"
+        _mark_last_assistant(new_msgs, "done")
         choices, val = _build_history_choices(new_sid, workspace_id)
         yield (
             new_msgs,
@@ -586,8 +796,7 @@ async def _handle_send_stream(
             gr.update(choices=choices, value=val),
         )
     except Exception as e:
-        if new_msgs and new_msgs[-1].get("role") == "assistant":
-            new_msgs[-1]["status"] = "error"
+        _mark_last_assistant(new_msgs, "error")
         choices, val = _build_history_choices(new_sid, workspace_id)
         yield (
             new_msgs,
@@ -602,6 +811,8 @@ async def _handle_send_stream(
             gr.update(),
             gr.update(choices=choices, value=val),
         )
+    finally:
+        await gen.aclose()
 
 
 def _clear_state(msg: str, workspace_id: str = DEFAULT_WORKSPACE_ID):

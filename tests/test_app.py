@@ -375,3 +375,383 @@ def test_style_has_no_external_font_requests():
     css = Path("app/style.css").read_text(encoding="utf-8")
     assert "fonts.googleapis.com" not in css
     assert "@import" not in css
+
+
+# ===================== TOOL ACTIVITY & ATTACHMENTS =====================
+
+
+def test_tool_events_render_as_activity_messages():
+    from app.app import _tool_event_message
+
+    request = _tool_event_message(
+        {
+            "type": "tool_request",
+            "name": "Bash",
+            "arguments": {"command": "ls -la"},
+        },
+        "request",
+    )
+    assert request["kind"] == "tool"
+    assert request["status"] == "running"
+    assert "Bash" in request["content"]
+    assert "ls -la" in request["content"]
+
+    failure = _tool_event_message(
+        {
+            "type": "tool_result",
+            "name": "Bash",
+            "output": "permission denied",
+            "is_error": True,
+        },
+        "result",
+    )
+    assert failure["status"] == "error"
+    assert "permission denied" in failure["content"]
+
+
+def test_assistant_delta_starts_new_message_after_tool_activity():
+    from app.app import _append_assistant_delta, _tool_event_message
+
+    messages = [{"role": "user", "content": "hello"}]
+    messages = _append_assistant_delta(messages, "thinking")
+    messages.append(
+        _tool_event_message(
+            {"type": "tool_request", "name": "Read", "arguments": {"path": "x"}},
+            "request",
+        )
+    )
+    messages = _append_assistant_delta(messages, "done")
+
+    assert [message["role"] for message in messages] == [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+    ]
+    assert messages[1]["content"] == "thinking"
+    assert messages[2]["kind"] == "tool"
+    assert messages[3]["content"] == "done"
+
+
+async def test_send_forwards_image_attachment_to_agent(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _handle_send_stream
+
+    image = tmp_path / "diagram.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    captured = {}
+
+    async def fake_stream(prompt, **kwargs):
+        captured["prompt"] = prompt
+        captured.update(kwargs)
+        yield {"type": "meta", "session_id": "s-image", "backend": "alfred-cli"}
+        yield {"type": "done", "result": "completed"}
+
+    monkeypatch.setattr("app.app.stream_filesystem_agent", fake_stream)
+
+    payload = {"text": "Describe this", "files": [str(image)]}
+    outputs = [
+        item
+        async for item in _handle_send_stream(
+            payload,
+            [],
+            None,
+            None,
+            "auto",
+            [],
+            None,
+            None,
+            "general",
+        )
+    ]
+
+    assert captured["images"] == [
+        {
+            "media_type": "image/png",
+            "data": "iVBORw0KGgpmYWtl",
+        }
+    ]
+    assert outputs[-1][3] == "done"
+
+
+async def test_send_rejects_unreadable_attachment(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _handle_send_stream
+
+    monkeypatch.setattr(
+        "app.app.stream_filesystem_agent",
+        lambda *args, **kwargs: None,
+    )
+
+    payload = {"text": "Describe this", "files": [str(tmp_path / "missing.png")]}
+    outputs = [
+        item
+        async for item in _handle_send_stream(
+            payload,
+            [],
+            None,
+            None,
+            "auto",
+            [],
+            None,
+            None,
+            "general",
+        )
+    ]
+
+    assert outputs[-1][3] == "error"
+    assert "attachment" in outputs[-1][4].lower()
+
+
+def test_history_restores_tool_activity(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _load_session_into_state
+
+    session_dir = _write_session(tmp_path, "20261019T120000Z-ddd", "Hello")
+    (session_dir / "messages.ndjson").write_text(
+        json.dumps({"role": "user", "content": "Hello"})
+        + "\n"
+        + json.dumps({"role": "assistant", "content": "Done", "status": "done"})
+        + "\n"
+    )
+    (session_dir / "events.ndjson").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "meta",
+                        "session_id": "20261019T120000Z-ddd",
+                        "backend": "alfred-cli",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "tool_request",
+                        "name": "Read",
+                        "arguments": {"path": "README.md"},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "tool_result",
+                        "name": "Read",
+                        "output": "contents",
+                        "is_error": False,
+                    }
+                ),
+                json.dumps({"type": "delta", "content": "Done"}),
+                json.dumps({"type": "done", "result": "completed"}),
+            ]
+        )
+        + "\n"
+    )
+
+    messages, *_rest = _load_session_into_state("20261019T120000Z-ddd", "general")
+
+    assert [message["role"] for message in messages] == [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+    ]
+    assert messages[1]["kind"] == "tool"
+    assert messages[2]["kind"] == "tool"
+    assert messages[3]["content"] == "Done"
+
+
+def test_history_preserves_interleaved_deltas_and_tools(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _load_session_into_state
+
+    session_dir = _write_session(tmp_path, "20261019T120500Z-eee", "Hello")
+    (session_dir / "messages.ndjson").write_text(
+        json.dumps({"role": "user", "content": "Hello"})
+        + "\n"
+        + json.dumps({"role": "assistant", "content": "beforeafter", "status": "done"})
+        + "\n"
+    )
+    (session_dir / "events.ndjson").write_text(
+        "\n".join(
+            [
+                json.dumps({"type": "meta", "session_id": "20261019T120500Z-eee"}),
+                json.dumps({"type": "delta", "content": "before"}),
+                json.dumps(
+                    {
+                        "type": "tool_request",
+                        "name": "Read",
+                        "arguments": {"path": "README.md"},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "tool_result",
+                        "name": "Read",
+                        "output": "contents",
+                        "is_error": False,
+                    }
+                ),
+                json.dumps({"type": "delta", "content": "after"}),
+                json.dumps({"type": "done", "result": "completed"}),
+            ]
+        )
+        + "\n"
+    )
+
+    messages, *_rest = _load_session_into_state("20261019T120500Z-eee", "general")
+
+    assert [message["role"] for message in messages] == [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+    ]
+    assert messages[1]["content"] == "before"
+    assert messages[2]["kind"] == "tool"
+    assert messages[3]["kind"] == "tool"
+    assert messages[4]["content"] == "after"
+
+
+def test_history_keeps_two_turns_in_order(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _load_session_into_state
+
+    session_dir = _write_session(tmp_path, "20261019T121000Z-fff", "First")
+    (session_dir / "messages.ndjson").write_text(
+        "\n".join(
+            [
+                json.dumps({"role": "user", "content": "First"}),
+                json.dumps({"role": "assistant", "content": "One", "status": "done"}),
+                json.dumps({"role": "user", "content": "Second"}),
+                json.dumps({"role": "assistant", "content": "Two", "status": "done"}),
+            ]
+        )
+        + "\n"
+    )
+    (session_dir / "events.ndjson").write_text(
+        "\n".join(
+            [
+                json.dumps({"type": "meta", "session_id": "20261019T121000Z-fff"}),
+                json.dumps({"type": "delta", "content": "One"}),
+                json.dumps({"type": "done", "result": "completed"}),
+                json.dumps({"type": "meta", "session_id": "20261019T121000Z-fff"}),
+                json.dumps({"type": "delta", "content": "Two"}),
+                json.dumps({"type": "done", "result": "completed"}),
+            ]
+        )
+        + "\n"
+    )
+
+    messages, *_rest = _load_session_into_state("20261019T121000Z-fff", "general")
+
+    assert [(message["role"], message["content"]) for message in messages] == [
+        ("user", "First"),
+        ("assistant", "One"),
+        ("user", "Second"),
+        ("assistant", "Two"),
+    ]
+
+
+def test_history_handles_failed_startup_without_meta(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _load_session_into_state
+
+    session_dir = _write_session(tmp_path, "20261019T121500Z-ggg", "First")
+    (session_dir / "messages.ndjson").write_text(
+        "\n".join(
+            [
+                json.dumps({"role": "user", "content": "First"}),
+                json.dumps({"role": "assistant", "content": "One", "status": "done"}),
+                json.dumps({"role": "user", "content": "Second"}),
+                json.dumps(
+                    {"role": "assistant", "content": "Startup failed", "status": "error"}
+                ),
+            ]
+        )
+        + "\n"
+    )
+    (session_dir / "events.ndjson").write_text(
+        "\n".join(
+            [
+                json.dumps({"type": "meta", "session_id": "20261019T121500Z-ggg"}),
+                json.dumps(
+                    {
+                        "type": "tool_request",
+                        "name": "Read",
+                        "arguments": {"path": "README.md"},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "tool_result",
+                        "name": "Read",
+                        "output": "contents",
+                        "is_error": False,
+                    }
+                ),
+                json.dumps({"type": "delta", "content": "One"}),
+                json.dumps({"type": "done", "result": "completed"}),
+                json.dumps({"type": "error", "message": "failed to start"}),
+            ]
+        )
+        + "\n"
+    )
+
+    messages, *_rest = _load_session_into_state("20261019T121500Z-ggg", "general")
+
+    assert [(message["role"], message.get("kind")) for message in messages] == [
+        ("user", None),
+        ("assistant", "tool"),
+        ("assistant", "tool"),
+        ("assistant", None),
+        ("user", None),
+        ("assistant", None),
+    ]
+    assert [message["content"] for message in messages if message.get("kind") != "tool"] == [
+        "First",
+        "One",
+        "Second",
+        "Startup failed",
+    ]
+    assert "Read" in messages[1]["content"]
+    assert "contents" in messages[2]["content"]
+    assert messages[5]["status"] == "error"
+
+
+async def test_send_rejects_mixed_valid_and_invalid_attachments(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _handle_send_stream
+
+    image = tmp_path / "good.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    called = False
+
+    async def fake_stream(prompt, **kwargs):
+        nonlocal called
+        called = True
+        yield {"type": "done", "result": "completed"}
+
+    monkeypatch.setattr("app.app.stream_filesystem_agent", fake_stream)
+    payload = {
+        "text": "Describe these",
+        "files": [str(image), str(tmp_path / "missing.png")],
+    }
+
+    outputs = [
+        item
+        async for item in _handle_send_stream(
+            payload,
+            [],
+            None,
+            None,
+            "auto",
+            [],
+            None,
+            None,
+            "general",
+        )
+    ]
+
+    assert outputs[-1][3] == "error"
+    assert "attachments" in outputs[-1][4].lower()
+    assert called is False

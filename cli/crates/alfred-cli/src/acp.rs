@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use alfred_tools::config::Config;
 use anyhow::Result;
+use cersei::memory::Memory as _;
 use serde::{Deserialize, Serialize};
 
 const ACP_VERSION: &str = "1";
@@ -17,11 +18,21 @@ enum AcpClientMessage {
         cwd: Option<String>,
     },
     #[serde(rename = "prompt.send")]
-    PromptSend { prompt: String },
+    PromptSend {
+        prompt: String,
+        #[serde(default)]
+        images: Vec<AcpImage>,
+    },
     #[serde(rename = "session.cancel")]
     SessionCancel,
     #[serde(rename = "session.close")]
     SessionClose,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AcpImage {
+    pub media_type: String,
+    pub data: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,9 +165,9 @@ pub async fn run_acp(cwd: Option<PathBuf>) -> Result<()> {
                 }
             }
 
-            AcpClientMessage::PromptSend { prompt } => {
+            AcpClientMessage::PromptSend { prompt, images } => {
                 if let Some(ref mut s) = session {
-                    run_agent_loop(&mut *s, &prompt).await;
+                    run_agent_loop(&mut *s, &prompt, &images).await;
                 } else {
                     AcpServerEvent::Error {
                         message: "No active session. Send session.start first.".to_string(),
@@ -191,7 +202,7 @@ struct ActiveSession {
     api_key: String,
 }
 
-async fn run_agent_loop(session: &mut ActiveSession, prompt: &str) {
+async fn run_agent_loop(session: &mut ActiveSession, prompt: &str, images: &[AcpImage]) {
     std::env::set_var("OPENROUTER_API_KEY", &session.api_key);
     let config = Config::load().await.unwrap_or_default();
 
@@ -225,6 +236,23 @@ async fn run_agent_loop(session: &mut ActiveSession, prompt: &str) {
         }
     };
 
+    let initial_messages = if images.is_empty() {
+        None
+    } else {
+        let mut history = memory.load(&session.session_id).await.unwrap_or_default();
+        let blocks = images
+            .iter()
+            .map(|image| {
+                cersei::types::ContentBlock::image_base64(
+                    image.media_type.clone(),
+                    image.data.clone(),
+                )
+            })
+            .collect();
+        history.push(cersei::types::Message::user_blocks(blocks));
+        Some(history)
+    };
+
     let mut tools = cersei::tools::coding();
     tools.push(Box::new(
         cersei::tools::skill_tool::SkillTool::new()
@@ -235,16 +263,20 @@ async fn run_agent_loop(session: &mut ActiveSession, prompt: &str) {
         tools.push(mcp_tool);
     }
 
-    let agent = match cersei::Agent::builder()
+    let mut agent_builder = cersei::Agent::builder()
         .provider_boxed(provider)
         .model(resolved_model)
         .tools(tools)
         .system_prompt(system_prompt)
         .working_dir(&session.cwd)
         .session_id(&session.session_id)
-        .memory(memory)
-        .build()
-    {
+        .memory(memory);
+
+    if let Some(messages) = initial_messages {
+        agent_builder = agent_builder.with_messages(messages);
+    }
+
+    let agent = match agent_builder.build() {
         Ok(agent) => agent,
         Err(e) => {
             AcpServerEvent::Error {
@@ -314,4 +346,35 @@ fn memory_paths() -> (PathBuf, PathBuf) {
         alfred_config_dir.join("graph.db"),
         alfred_config_dir.join("sessions"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prompt_send_accepts_images_and_defaults_to_empty() {
+        let without_images: AcpClientMessage =
+            serde_json::from_str(r#"{"type":"prompt.send","prompt":"hello"}"#).unwrap();
+        match without_images {
+            AcpClientMessage::PromptSend { prompt, images } => {
+                assert_eq!(prompt, "hello");
+                assert!(images.is_empty());
+            }
+            _ => panic!("expected prompt.send"),
+        }
+
+        let with_images: AcpClientMessage = serde_json::from_str(
+            r#"{"type":"prompt.send","prompt":"look","images":[{"media_type":"image/png","data":"YWJj"}]}"#,
+        )
+        .unwrap();
+        match with_images {
+            AcpClientMessage::PromptSend { images, .. } => {
+                assert_eq!(images.len(), 1);
+                assert_eq!(images[0].media_type, "image/png");
+                assert_eq!(images[0].data, "YWJj");
+            }
+            _ => panic!("expected prompt.send"),
+        }
+    }
 }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import shlex
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from models import (
     FS_AGENT_BACKEND_AUTO,
@@ -24,7 +24,8 @@ async def stream_filesystem_agent(
     cwd: str | None = None,
     session_id: str | None = None,
     backend: FsAgentBackend = FS_AGENT_BACKEND_AUTO,
-) -> AsyncIterator[dict[str, object]]:
+    images: list[dict[str, str]] | None = None,
+) -> AsyncGenerator[dict[str, object], None]:
     selected_backend, binary = select_fs_agent_backend(backend)
     session_id, session_dir = ensure_session(session_id)
     if binary is None:
@@ -37,7 +38,7 @@ async def stream_filesystem_agent(
         return
 
     command = build_alfred_acp_command(cwd=cwd, binary_override=binary)
-    request_payload = {
+    request_payload: dict[str, object] = {
         "type": "fs-agent",
         "prompt": prompt,
         "cwd": cwd,
@@ -46,6 +47,8 @@ async def stream_filesystem_agent(
         "transport": "acp",
         "command": shlex.join(command),
     }
+    if images:
+        request_payload["images"] = images
     async for payload in relay_acp_subprocess(
         command,
         session_dir=session_dir,
