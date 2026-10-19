@@ -1,6 +1,14 @@
 from pathlib import Path
 from typing import Any
 
+from transcription.backends.base import TranscriptionBackend
+from transcription.config import TranscriptionConfig
+from transcription.types import (
+    TranscriptResult,
+    TranscriptSegment,
+    TranscriptWord,
+)
+
 FASTER_WHISPER_AVAILABLE = False
 WhisperModel = None
 
@@ -11,14 +19,6 @@ try:
     WhisperModel = _WhisperModel
 except ImportError:
     pass
-
-from transcription.backends.base import TranscriptionBackend
-from transcription.config import TranscriptionConfig
-from transcription.types import (
-    TranscriptResult,
-    TranscriptSegment,
-    TranscriptWord,
-)
 
 
 class FasterWhisperBackend(TranscriptionBackend):
@@ -40,6 +40,8 @@ class FasterWhisperBackend(TranscriptionBackend):
 
     def _load_model(self) -> Any:
         model_size = self._resolve_model_size(self.config.model)
+        if WhisperModel is None:
+            raise RuntimeError("faster-whisper not installed")
         return WhisperModel(
             model_size,
             device=self.config.device,

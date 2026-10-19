@@ -1,3 +1,4 @@
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -26,10 +27,8 @@ class ParakeetBackend(TranscriptionBackend):
 
     def is_available(self) -> bool:
         try:
-            import nemo.collections.asr as nemo_asr
-
-            return True
-        except ImportError:
+            return find_spec("nemo.collections.asr") is not None
+        except (ImportError, ValueError):
             return False
 
     def health_check(self) -> dict[str, Any]:

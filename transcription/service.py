@@ -1,6 +1,7 @@
 import tempfile
+from importlib.util import find_spec
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from transcription.backends.faster_whisper_backend import get_faster_whisper_backend
 from transcription.config import TranscriptionConfig
@@ -41,10 +42,13 @@ class TranscriptionService:
             tmp_path = Path(tmp.name)
 
         try:
-            return self.backend.transcribe(
-                tmp_path,
-                language=language,
-                word_timestamps=word_timestamps,
+            return cast(
+                TranscriptResult,
+                self.backend.transcribe(
+                    tmp_path,
+                    language=language,
+                    word_timestamps=word_timestamps,
+                ),
             )
         finally:
             if tmp_path.exists():
@@ -59,21 +63,19 @@ class TranscriptionService:
         except ImportError:
             pass
 
-        backend_health = self.backend.health_check() if self._backend else {}
+        backend_health: dict[str, Any] = (
+            self.backend.health_check() if self._backend else {}
+        )
 
         faster_whisper_ok = False
         nemo_ok = False
         try:
-            import faster_whisper
-
-            faster_whisper_ok = True
-        except ImportError:
+            faster_whisper_ok = find_spec("faster_whisper") is not None
+        except (ImportError, ValueError):
             pass
         try:
-            import nemo.collections.asr
-
-            nemo_ok = True
-        except ImportError:
+            nemo_ok = find_spec("nemo.collections.asr") is not None
+        except (ImportError, ValueError):
             pass
 
         return TranscriptionHealth(
