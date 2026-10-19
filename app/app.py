@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import html
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -127,9 +128,9 @@ def get_sessions(workspace_id: str | None = None) -> list[dict]:
 
 def _render_status(st: str, dt: str) -> str:
     if st == "idle":
-        icon = '<i class="fas fa-info-circle"></i> '
-        cls = "status-idle"
-    elif st == "running":
+        # Idle is the quiet default: no banner noise.
+        return ""
+    if st == "running":
         icon = '<i class="fas fa-spinner fa-spin"></i> '
         cls = "status-running"
     elif st == "done":
@@ -138,7 +139,11 @@ def _render_status(st: str, dt: str) -> str:
     else:
         icon = '<i class="fas fa-exclamation-triangle"></i> '
         cls = "status-error"
-    return f'<div class="status-banner {cls}">{icon}<span id="status-indicator">{dt}</span></div>'
+    label = html.escape(str(dt or ""))
+    return (
+        f'<div class="status-banner {cls}">{icon}'
+        f'<span id="status-indicator">{label}</span></div>'
+    )
 
 
 def _render_artifacts(arts: list[dict]) -> str:
@@ -146,17 +151,17 @@ def _render_artifacts(arts: list[dict]) -> str:
         return ""
     h = (
         '<h4 style="font-weight:600;margin-bottom:0.75rem;'
-        'font-size:0.95rem;color:#abb2bf">Artifacts</h4>'
+        'font-size:0.95rem;color:var(--text-muted)">Artifacts</h4>'
     )
     parts = [f"<div>{h}"]
     for art in arts:
-        label = art.get("label", "artifact")
+        label = html.escape(str(art.get("label", "artifact")))
         path = art.get("path") or art.get("url") or "pending"
-        name = Path(path).name if path != "pending" else "pending"
+        name = html.escape(Path(path).name if path != "pending" else "pending")
         parts.append(
             '<div class="artifact-card">'
             f'<span style="font-weight:500">📦 {label}</span>'
-            f'<span style="font-size:0.75rem;color:#7f848e;word-break:break-all;'
+            f'<span style="font-size:0.75rem;color:var(--text-muted);word-break:break-all;'
             f'margin-top:2px">{name}</span></div>'
         )
     parts.append("</div>")
@@ -166,11 +171,12 @@ def _render_artifacts(arts: list[dict]) -> str:
 def _render_pending(name: str | None) -> str:
     if not name:
         return ""
+    safe = html.escape(str(name))
     return (
-        '<span style="color:#98c379;font-size:0.85rem;padding:0.25rem 0.5rem;'
+        '<span style="color:var(--success);font-size:0.85rem;padding:0.25rem 0.5rem;'
         'background:rgba(152,195,121,0.1);border-radius:4px;'
         'border:1px solid rgba(152,195,121,0.3)">'
-        f"📷 {name}</span>"
+        f"📷 {safe}</span>"
     )
 
 
@@ -239,7 +245,8 @@ def _load_session_into_state(
             pass
 
     new_msgs: list[dict] = []
-    new_artifacts: list[dict] = []
+    new_artifacts: list[dict] = [ev for ev in events if ev.get("type") == "artifact"]
+    run_failed = any(ev.get("type") == "error" for ev in events)
 
     if messages_list:
         for msg in messages_list:
@@ -263,14 +270,26 @@ def _load_session_into_state(
                         "status": msg.get("status"),
                     }
                 )
+        # messages.ndjson stores turns written by the wrapper and may contain only
+        # the user prompt; the assistant reply is reconstructed from stream events.
+        if not any(message.get("role") == "assistant" for message in new_msgs):
+            assistant_content = "".join(
+                read_text(ev) for ev in events if ev.get("type") == "delta"
+            )
+            if assistant_content.strip():
+                new_msgs.append(
+                    {
+                        "role": "assistant",
+                        "content": assistant_content,
+                        "status": "error" if run_failed else "done",
+                    }
+                )
     else:
         user_prompt = meta.get("prompt", "Loaded session")
         assistant_content = ""
         for ev in events:
             if ev.get("type") == "delta":
                 assistant_content += read_text(ev)
-            if ev.get("type") == "artifact":
-                new_artifacts.append(ev)
 
         image_b64 = None
         upload_path = session_dir / "upload.png"
@@ -285,7 +304,11 @@ def _load_session_into_state(
         new_msgs.append({"role": "user", "content": user_prompt})
         if assistant_content.strip():
             new_msgs.append(
-                {"role": "assistant", "content": assistant_content, "status": "done"}
+                {
+                    "role": "assistant",
+                    "content": assistant_content,
+                    "status": "error" if run_failed else "done",
+                }
             )
 
     choices, _ = _build_history_choices(sid, workspace_id)
@@ -631,23 +654,11 @@ with gr.Blocks(
     pending_image_name = gr.State(None)
 
     with gr.Sidebar(width=280, position="left", open=True, elem_id="sidebar"):
-        gr.Markdown("## A.L.F.R.E.D.")
+        gr.Markdown("## A.L.F.R.E.D.", elem_id="brand")
         new_session_btn = gr.Button(
             "New Chat",
             elem_id="new_session_btn",
-            elem_classes=["btn-primary-custom", "w-100"],
-        )
-
-        cwd = gr.Textbox(
-            label="Working Directory (optional)",
-            placeholder="/path/to/repo",
-            elem_classes=["agent-settings-card"],
-        )
-        fs_backend = gr.Dropdown(
-            choices=["auto", "alfred-cli"],
-            value="auto",
-            label="Agent Backend",
-            elem_classes=["agent-settings-card"],
+            elem_classes=["w-100"],
         )
         workspace_selector = gr.Dropdown(
             choices=_workspace_choices(),
@@ -655,36 +666,61 @@ with gr.Blocks(
             label="Workspace",
             elem_classes=["agent-settings-card"],
         )
-        with gr.Row(elem_classes=["workspace-create-row"]):
-            workspace_name = gr.Textbox(
-                placeholder="New workspace",
-                show_label=False,
-                container=False,
-                min_width=0,
-                elem_classes=["workspace-name-input"],
-            )
-            create_workspace_btn = gr.Button(
-                "+", size="sm", scale=0, elem_id="create_workspace_btn", min_width=36
-            )
-        artifacts_html = gr.HTML(elem_classes=["artifacts-panel"])
-        gr.Markdown("### History")
+        gr.Markdown("### History", elem_classes=["sidebar-section-title"])
         history_radio = gr.Radio(
-            label="",
+            label="Session history",
+            show_label=False,
             choices=[],
             interactive=True,
             elem_classes=["history-radio"],
         )
+        artifacts_html = gr.HTML(elem_classes=["artifacts-panel"])
+        with gr.Accordion(
+            "⚙ Settings",
+            open=False,
+            elem_id="settings-accordion",
+        ):
+            cwd = gr.Textbox(
+                label="Working Directory (optional)",
+                placeholder="/path/to/repo",
+                elem_classes=["agent-settings-card"],
+            )
+            fs_backend = gr.Dropdown(
+                choices=["auto", "alfred-cli"],
+                value="auto",
+                label="Agent Backend",
+                elem_classes=["agent-settings-card"],
+            )
+            with gr.Row(elem_classes=["workspace-create-row"]):
+                workspace_name = gr.Textbox(
+                    placeholder="New workspace",
+                    show_label=False,
+                    container=False,
+                    min_width=0,
+                    elem_classes=["workspace-name-input"],
+                )
+                create_workspace_btn = gr.Button(
+                    "+",
+                    size="sm",
+                    scale=0,
+                    elem_id="create_workspace_btn",
+                    min_width=36,
+                )
+            clear_btn = gr.Button(
+                "Reset transcript",
+                elem_classes=["btn-secondary-custom", "w-100"],
+            )
 
-    with gr.Column(scale=1, elem_id="main-chat"):
+    with gr.Column(elem_id="main-chat"):
         with gr.Row(elem_classes=["header-row"]):
-            gr.Markdown("# Alfred Workspace", elem_classes=["header-title"])
+            gr.Markdown("# Alfred", elem_classes=["header-title"])
 
         with gr.Column(elem_classes=["chat-center-wrapper"]):
             placeholder = (
                 "**Alfred Standing By.**\n\n"
                 "Greetings. I am Alfred, your Algorithmic Life-form Feigning "
                 "Real Emotional Depth.\n\n"
-                "Agent ready. Provide a prompt (cwd optional on left)."
+                "Provide a prompt to begin."
             )
             chatbot = gr.Chatbot(
                 placeholder=placeholder,
@@ -697,23 +733,35 @@ with gr.Blocks(
                 autoscroll=True,
             )
 
+            status_html = gr.HTML(
+                value="",
+                elem_classes=["status-slot"],
+            )
+
+            with gr.Accordion(
+                "🎤 Voice input",
+                open=False,
+                elem_classes=["voice-accordion"],
+            ):
+                with gr.Row(elem_classes=["voice-row"]):
+                    audio_upload = gr.UploadButton(
+                        "Upload audio",
+                        file_types=["audio"],
+                        elem_classes=["toolbar-file-upload"],
+                    )
+                    voice_audio = gr.Audio(
+                        sources=["microphone"],
+                        type="filepath",
+                        label="Record",
+                        show_label=True,
+                        elem_classes=["voice-audio"],
+                    )
+                    pending_html = gr.HTML(elem_classes=["pending-upload"])
+
             with gr.Row(elem_classes=["toolbar-row"]):
-                audio_upload = gr.UploadButton(
-                    "🎤 Voice Upload",
-                    file_types=["audio"],
-                    elem_classes=["toolbar-file-upload"],
+                fork_btn = gr.Button(
+                    "Fork", scale=0, elem_classes=["btn-secondary-custom"]
                 )
-                voice_audio = gr.Audio(
-                    sources=["microphone"],
-                    type="filepath",
-                    label="",
-                    show_label=False,
-                    elem_classes=["voice-audio"],
-                )
-                pending_html = gr.HTML(elem_classes=["pending-upload"])
-                gr.HTML("<div style='flex-grow:1'></div>")
-                fork_btn = gr.Button("Fork", elem_classes=["btn-secondary-custom"])
-                clear_btn = gr.Button("Clear", elem_classes=["btn-secondary-custom"])
 
             prompt = gr.MultimodalTextbox(
                 placeholder="Message Alfred...",
@@ -895,6 +943,20 @@ with gr.Blocks(
         api_visibility="private",
     )
 
+    # Keep the visible status banner in sync with run state
+    status.change(
+        _render_status,
+        inputs=[status, status_detail],
+        outputs=[status_html],
+        api_visibility="private",
+    )
+    status_detail.change(
+        _render_status,
+        inputs=[status, status_detail],
+        outputs=[status_html],
+        api_visibility="private",
+    )
+
     # After any major action that may create new sessions, refresh history choices
     for ev in (status, session_id):
         ev.change(
@@ -915,10 +977,26 @@ with gr.Blocks(
 
 app = demo
 
+# Alfred is dark-first. Gradio selects light/dark from the system preference or
+# the documented `__theme` query parameter, so set that parameter once on load.
+# This avoids hardcoding a palette and keeps native theme variables authoritative.
+_FORCE_DARK_HEAD = """
+<script>
+(function () {
+  var url = new URL(window.location.href);
+  if (!url.searchParams.has("__theme")) {
+    url.searchParams.set("__theme", "dark");
+    window.location.replace(url.toString());
+  }
+})();
+</script>
+"""
+
 if __name__ == "__main__":
     demo.launch(
         server_port=8501,
         theme=gr.themes.Monochrome(),
         css=Path(__file__).parent.joinpath("style.css").read_text(),
+        head=_FORCE_DARK_HEAD,
         footer_links=[],
     )

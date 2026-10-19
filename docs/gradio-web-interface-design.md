@@ -1,8 +1,35 @@
 # Alfred Gradio Web Interface UX Redesign
 
-**Status:** Proposed  
+**Status:** Partially superseded — see the note below  
 **Owner:** Alfred project  
-**Last updated:** 2026-07-10
+**Last updated:** 2026-10-19
+
+> ## Implementation note (2026-10-19)
+>
+> A narrower chat-first rebuild was implemented instead of the full module
+> rewrite proposed here:
+>
+> - the native `gr.Sidebar` shell, `fill_height`, and `gr.MultimodalTextbox`
+>   are retained;
+> - working directory, backend, workspace creation, and transcript reset moved
+>   into a collapsed **Settings** accordion;
+> - voice input moved from an absolutely positioned popover into a collapsed
+>   accordion in normal layout flow (the reported overlap bug);
+> - messages and copy actions use native Gradio rendering; the deep
+>   `.message-row` / `.user` / `.bot` overrides were removed;
+> - the Google Fonts import was removed;
+> - the app is dark-first via the documented `?__theme=dark` parameter;
+> - the viewport layout is owned by a shallow stylesheet, and the existing single
+>   `app/app.py` was kept rather than split into `components.py`, `events.py`,
+>   and `presenters.py`.
+>
+> See [`app/README.md`](../app/README.md) for the implemented layout model and
+> styling rules. The phases and acceptance criteria below remain useful as a
+> backlog for later work, but are not the current change description.
+>
+> Deferred items include: stop/cancellation propagation, actionable artifact
+> download links, session rename/delete, retry after errors, and automated
+> browser smoke tests.
 
 ## 1. Decision summary
 

@@ -1,68 +1,38 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Alfred workbench — shallow styling.
+   Only Alfred-owned elem_id / elem_classes are targeted. Deep Gradio-internal
+   markup (message rows, .wrap, .form, data-testid) is intentionally untouched
+   so supported Gradio upgrades cannot silently break the layout. */
 
 :root {
-  --bg: #2f343e;
+  --bg: #1e1e1e;
   --bg-secondary: #212121;
   --panel: #1e1e1e;
   --panel-border: #333;
   --text: #e0e0e0;
-  --text-muted: #888;
+  --text-muted: #8a8f98;
   --accent: #61afef;
   --success: #98c379;
   --danger: #e06c75;
-  --user-bg: #2b2b2b;
   --sidebar-bg: #141414;
   --input-bg: #2a2a2a;
-}
-
-/* Gradio 6 dark theme — override the theme's CSS variables so every component
-   (inputs, dropdowns, labels, panels, buttons) inherits the dark palette without
-   depending on internal component class names. */
-:root,
-.gradio-container {
-  --body-text-color: #e0e0e0 !important;
-  --background-fill-primary: #1e1e1e !important;
-  --background-fill-secondary: #2b2b2b !important;
-  --block-background-fill: transparent !important;
-  --block-border-color: #333 !important;
-  --block-label-text-color: #9aa0a6 !important;
-  --block-title-text-color: #9aa0a6 !important;
-  --block-title-text-weight: 500 !important;
-  --panel-background-fill: #1e1e1e !important;
-  --panel-border-color: #333 !important;
-  --border-color-primary: #333 !important;
-  --border-color-accent: #61afef !important;
-  --border-color-accent-subdued: rgba(97, 175, 239, 0.3) !important;
-  --color-accent: #61afef !important;
-  --color-accent-soft: rgba(97, 175, 239, 0.15) !important;
-  --input-background-fill: #2a2a2a !important;
-  --input-background-fill-focus: #2a2a2a !important;
-  --input-border-color: #333 !important;
-  --input-border-color-focus: #61afef !important;
-  --input-placeholder-color: #888 !important;
-  --link-text-color: #61afef !important;
-  --button-secondary-background-fill: transparent !important;
-  --button-secondary-background-fill-hover: rgba(255, 255, 255, 0.05) !important;
-  --button-secondary-border-color: #333 !important;
-  --button-secondary-text-color: #888 !important;
-  --button-secondary-text-color-hover: #e0e0e0 !important;
-  --checkbox-background-color-selected: #61afef !important;
-  --table-border-color: #333 !important;
-  --table-even-background-fill: #2b2b2b !important;
-  --error-text-color: #e06c75 !important;
+  --radius: 10px;
 }
 
 * {
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', sans-serif;
+  /* Local-first: no external font requests. */
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
 }
 
 ::-webkit-scrollbar {
@@ -70,7 +40,7 @@ html, body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--panel);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--text-muted);
@@ -80,309 +50,85 @@ html, body {
   background: var(--accent);
 }
 
-/* Hide Gradio footer */
 footer,
 .gradio-footer,
 .gr-footer {
   display: none !important;
 }
 
-/* Strip Gradio container chrome */
+/* Alfred is a single-viewport application shell: the app never grows past the
+   window, and only the transcript scrolls. These are the documented top-level
+   Gradio containers, not internal component markup. */
+gradio-app,
 .gradio-container {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
   border: none !important;
   box-shadow: none !important;
-  background: transparent !important;
-  max-width: 100% !important;
   border-radius: 0 !important;
 }
 
-/* Sidebar — native gr.Sidebar owns layout/toggle; we only match the theme. */
-#sidebar {
-  background: var(--sidebar-bg) !important;
-  border-right: 1px solid var(--panel-border) !important;
-}
-
-#sidebar h2 {
-  font-weight: 700;
-  color: var(--accent);
-  margin-bottom: 0.2rem;
-  font-size: 1.1rem;
-}
-
-.workspace-create-row {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 36px !important;
-  align-items: stretch !important;
-  gap: 0.5rem !important;
-  width: 100% !important;
-}
-
-.workspace-create-row > div:has(.workspace-name-input) {
-  min-width: 0 !important;
-  width: 100% !important;
-}
-
-.workspace-name-input,
-.workspace-name-input input {
-  min-width: 0 !important;
-  width: 100% !important;
-  white-space: nowrap !important;
-  word-break: normal !important;
-  overflow-wrap: normal !important;
-}
-
-#create_workspace_btn {
-  width: 36px !important;
-  min-width: 36px !important;
+/* Neutralize Gradio's default column growth so the chat shell fills the
+   available height instead of expanding past the viewport. Scoped to the single
+   column that directly owns #main-chat. */
+div.column:has(> #main-chat) {
+  min-height: 0 !important;
   height: 100% !important;
+}
+
+/* Gradio's shell adds a 16px gutter around the app; the Alfred shell owns its
+   own spacing, so remove it to keep viewport math exact. */
+.gradio-container .main {
   padding: 0 !important;
 }
 
-/* Main chat area */
-#main-chat {
-  display: flex !important;
-  flex-direction: column !important;
-  height: 100vh !important;
-  min-height: 0 !important;
-  background: var(--bg) !important;
-  overflow: hidden !important;
-}
+/* ── Sidebar ─────────────────────────────────────────── */
 
-.chat-center-wrapper {
-  flex: 1 !important;
-  min-height: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  max-width: 800px !important;
-  width: 100% !important;
-  margin: 0 auto !important;
-  padding: 1rem !important;
-  overflow: hidden !important;
-}
-
-/* Chatbot */
-#chatbot {
-  flex: 1 !important;
-  min-height: 0 !important;
+#sidebar {
+  background: var(--sidebar-bg) !important;
+  border-right: 1px solid var(--panel-border) !important;
   overflow-y: auto !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0.5rem 0 !important;
 }
 
-#chatbot .message-row {
-  display: flex !important;
-  align-items: flex-end !important;
-  gap: 0.5rem !important;
+#brand h2 {
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+
+.sidebar-section-title h3 {
+  font-size: 0.75rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted) !important;
+  margin: 0.75rem 0 0.25rem 0 !important;
+}
+
+#new_session_btn {
   width: 100% !important;
-  margin-bottom: 0.5rem !important;
-  animation: fadeIn 0.2s ease-out forwards;
-}
-
-/* User bubbles (right-aligned, options on left) */
-#chatbot .message-row.user-row {
-  flex-direction: row-reverse !important;
-  justify-content: flex-start !important;
-}
-
-/* Bot bubbles (left-aligned, options on right) */
-#chatbot .message-row.bot-row {
-  flex-direction: row !important;
-  justify-content: flex-start !important;
-}
-
-#chatbot .message-row .user,
-#chatbot .message-row .bot {
-  display: flex !important;
-  flex-direction: column !important;
-  width: fit-content !important;
-  max-width: 80% !important;
-  padding: 0.75rem 1rem !important;
-  border-radius: 16px !important;
-  font-size: 0.95rem !important;
-  line-height: 1.5 !important;
-  word-wrap: break-word !important;
-  word-break: normal !important;
-  overflow-wrap: break-word !important;
-  margin-bottom: 0.5rem !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-#chatbot .message-row .user {
   background: var(--accent) !important;
-  color: #fff !important;
-  border-bottom-right-radius: 4px !important;
-  align-self: flex-end !important;
-}
-
-#chatbot .message-row .bot {
-  background: var(--user-bg) !important;
-  color: var(--text) !important;
-  border-bottom-left-radius: 4px !important;
-  align-self: flex-start !important;
-}
-
-#chatbot .message-row .user *,
-#chatbot .message-row .bot * {
-  color: inherit !important;
-}
-
-/* Clean up copy action icons (detach fix) */
-#chatbot .message-row .message-buttons {
-  position: static !important;
-  display: inline-flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  align-self: flex-end !important;
-  margin-bottom: 0.5rem !important;
-  gap: 0.25rem !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  background: transparent !important;
+  color: #10151c !important;
   border: none !important;
-}
-
-#chatbot .message-row .message-buttons button,
-#chatbot .message-row .message-buttons .icon-button {
-  background: transparent !important;
-  border: none !important;
-  color: var(--text-muted) !important;
-  padding: 4px !important;
-  cursor: pointer !important;
-  transition: color 0.2s, background-color 0.2s !important;
-  font-size: 0.9rem !important;
-  min-width: unset !important;
-  width: auto !important;
-  height: auto !important;
-  box-shadow: none !important;
-  border-radius: 4px !important;
-}
-
-#chatbot .message-row .message-buttons button:hover,
-#chatbot .message-row .message-buttons .icon-button:hover {
-  color: var(--accent) !important;
-  background-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-/* Header */
-.header-row {
-  display: flex !important;
-  align-items: center !important;
-  padding: 0.5rem 1.5rem !important;
-  background: var(--bg-secondary) !important;
-  border-bottom: 1px solid var(--panel-border) !important;
-  gap: 1rem !important;
-  flex-shrink: 0 !important;
-}
-
-.header-row > div:has(.header-title) {
-  flex: 1 !important;
-}
-
-.header-row h1 {
-  font-size: 1.1rem !important;
+  border-radius: 8px !important;
+  padding: 0.6rem 0.8rem !important;
   font-weight: 600 !important;
-  color: var(--accent) !important;
-  margin: 0 !important;
-}
-
-/* Chat input — stock MultimodalTextbox (rounded, auto-growing, built-in attach/submit).
-   No custom chrome: the theme already styles it, we only align it with the toolbar. */
-#input-container {
-  margin: 0.75rem 1.5rem !important;
-  flex-shrink: 0 !important;
-}
-
-/* Toolbar row */
-.toolbar-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 0.75rem !important;
-  padding: 0.25rem 1.5rem !important;
-  flex-shrink: 0 !important;
-  position: relative !important; /* Context for absolute positioning of popover */
-}
-
-/* Voice recording popover — floating above toolbar */
-.voice-audio {
-  position: absolute !important;
-  bottom: 100% !important;
-  left: 1.5rem !important;
-  z-index: 1000 !important;
-  background: var(--panel) !important;
-  border: 1px solid var(--panel-border) !important;
-  border-radius: 10px !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45) !important;
-  margin-bottom: 0.5rem !important;
-  padding: 0.75rem 1rem !important;
-  width: 380px !important;
-  min-width: 360px !important;
-}
-
-/* Ensure Gradio audio controls inside the popover are fully visible and aligned */
-.voice-audio .wrap,
-.voice-audio .audio-container,
-.voice-audio > div {
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-.voice-audio button {
-  white-space: nowrap !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-}
-
-.voice-audio button > span {
-  overflow: visible !important;
-  text-overflow: clip !important;
-  white-space: nowrap !important;
-}
-
-.toolbar-file-upload {
-  position: relative;
-  cursor: pointer;
-}
-
-.toolbar-file-upload button {
-  background: transparent !important;
-  color: var(--text-muted) !important;
-  border: 1px solid var(--panel-border) !important;
-  border-radius: 8px !important;
-  padding: 0.35rem 0.65rem !important;
-  font-size: 0.85rem !important;
-  transition: all 0.2s !important;
+  transition: filter 0.15s ease, transform 0.15s ease !important;
   box-shadow: none !important;
 }
 
-.toolbar-file-upload button:hover {
-  background: rgba(255,255,255,0.05) !important;
-  border-color: var(--text-muted) !important;
-  color: var(--text) !important;
+#new_session_btn:hover {
+  filter: brightness(1.1);
 }
 
-.btn-secondary-custom {
-  background: transparent !important;
-  color: var(--text-muted) !important;
-  border: 1px solid var(--panel-border) !important;
-  border-radius: 8px !important;
-  padding: 0.35rem 0.75rem !important;
-  font-size: 0.85rem !important;
-  transition: all 0.2s !important;
-  box-shadow: none !important;
+/* Settings live behind progressive disclosure, not in primary navigation. */
+#settings-accordion {
+  margin-top: 1rem !important;
 }
 
-.btn-secondary-custom:hover {
-  background: rgba(255,255,255,0.05) !important;
-  color: var(--text) !important;
-}
-
-/* Agent settings card — generic element targeting (Gradio 6 DOM-agnostic) */
 #sidebar .agent-settings-card {
   margin-bottom: 0.35rem !important;
 }
@@ -394,52 +140,53 @@ footer,
   border-radius: 8px !important;
 }
 
-#sidebar .agent-settings-card input:focus,
-#sidebar .agent-settings-card textarea:focus {
-  box-shadow: 0 0 0 2px rgba(97, 175, 239, 0.25) !important;
-}
+/* ── History list ────────────────────────────────────── */
 
-/* History items styling (no radio buttons, clean list rows) */
 .history-radio {
   display: flex !important;
   flex-direction: column !important;
-  gap: 0.5rem !important;
+  gap: 0.35rem !important;
   width: 100% !important;
 }
 
-/* Hide radio inputs and their dots */
-.history-radio input[type="radio"],
-.history-radio input[type="radio"] + span::before,
-.history-radio input[type="radio"] + span::after,
-.history-radio .circle {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
+.history-radio .wrap {
+  gap: 0.35rem !important;
 }
 
 .history-radio label {
+  position: relative !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: flex-start !important;
-  justify-content: center !important;
   width: 100% !important;
-  padding: 0.75rem 1rem !important;
+  padding: 0.6rem 0.75rem !important;
   background: rgba(255, 255, 255, 0.04) !important;
   border: 1px solid var(--panel-border) !important;
   border-radius: 8px !important;
-  color: #cccccc !important; /* Increased contrast */
-  font-size: 0.85rem !important;
+  color: #cccccc !important;
+  font-size: 0.82rem !important;
   text-align: left !important;
   cursor: pointer !important;
-  transition: all 0.2s ease !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease !important;
   margin: 0 !important;
-  font-weight: 400 !important;
   white-space: pre-wrap !important;
   word-break: break-word !important;
+}
+
+/* Keep the native radio keyboard-accessible but remove the visible dot; the
+   whole row is the control and focus is shown on the row itself. */
+.history-radio label input[type="radio"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.history-radio label:has(input:focus-visible) {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 1px !important;
 }
 
 .history-radio label:hover {
@@ -448,8 +195,6 @@ footer,
   color: #ffffff !important;
 }
 
-/* Selected active state */
-.history-radio input[type="radio"]:checked + label,
 .history-radio label:has(input:checked) {
   background: rgba(97, 175, 239, 0.15) !important;
   border-color: var(--accent) !important;
@@ -457,50 +202,168 @@ footer,
   font-weight: 500 !important;
 }
 
-/* Remove default Gradio radio wrapper margins/borders */
-.history-radio .wrap {
-  gap: 0.5rem !important;
-}
-.history-radio .form {
-  border: none !important;
-  background: transparent !important;
-  padding: 0 !important;
+/* ── Main chat column ────────────────────────────────── */
+
+/* Fills the available height without forcing a viewport-height overflow. */
+#main-chat {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  background: var(--bg) !important;
+  overflow: hidden !important;
+  gap: 0 !important;
 }
 
-/* New session button */
-#new_session_btn {
-  width: 100% !important;
-  background: var(--accent) !important;
-  color: var(--bg) !important;
-  border: none !important;
-  border-radius: 8px !important;
-  padding: 0.6rem 0.8rem !important;
-  font-weight: 600 !important;
-  transition: all 0.2s ease !important;
-  box-shadow: none !important;
-  display: inline-flex !important;
+.header-row {
+  display: flex !important;
   align-items: center !important;
-  justify-content: center !important;
+  padding: 0.4rem 1.25rem !important;
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--panel-border) !important;
+  gap: 1rem !important;
+  flex-shrink: 0 !important;
+}
+
+.header-row h1 {
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  color: var(--accent) !important;
+  margin: 0 !important;
+}
+
+.chat-center-wrapper {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
   gap: 0.5rem !important;
+  width: 100% !important;
+  max-width: 900px !important;
+  margin: 0 auto !important;
+  padding: 0.75rem 1.25rem 1rem !important;
+  overflow: hidden !important;
 }
 
-#new_session_btn::before {
-  content: "";
-  width: 0.55rem;
-  height: 0.55rem;
-  flex: 0 0 0.55rem;
-  border-radius: 50%;
-  background: var(--success);
+#chatbot {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-#new_session_btn:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+.status-slot {
+  flex-shrink: 0 !important;
+  min-height: 0 !important;
 }
 
-/* Artifacts panel */
+.status-slot:empty,
+.status-slot > div:empty {
+  display: none !important;
+}
+
+.status-banner {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  font-size: 0.8rem !important;
+  padding: 0.35rem 0.6rem !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--panel-border) !important;
+  color: var(--text-muted) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.status-banner.status-running {
+  color: var(--accent) !important;
+  border-color: rgba(97, 175, 239, 0.35) !important;
+}
+
+.status-banner.status-done {
+  color: var(--success) !important;
+  border-color: rgba(152, 195, 121, 0.35) !important;
+}
+
+.status-banner.status-error {
+  color: var(--danger) !important;
+  border-color: rgba(224, 108, 117, 0.45) !important;
+}
+
+/* ── Voice input (in normal flow, never floating) ────── */
+
+.voice-accordion {
+  flex-shrink: 0 !important;
+}
+
+.voice-row {
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+.toolbar-file-upload button {
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 8px !important;
+  padding: 0.4rem 0.7rem !important;
+  font-size: 0.85rem !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+  box-shadow: none !important;
+}
+
+.toolbar-file-upload button:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text) !important;
+}
+
+.pending-upload {
+  flex-shrink: 0 !important;
+}
+
+/* ── Toolbar + composer ──────────────────────────────── */
+
+.toolbar-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.75rem !important;
+  flex-shrink: 0 !important;
+}
+
+.toolbar-row > * {
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
+
+.btn-secondary-custom {
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 8px !important;
+  padding: 0.4rem 0.8rem !important;
+  font-size: 0.85rem !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+  box-shadow: none !important;
+}
+
+.btn-secondary-custom:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text) !important;
+}
+
+#input-container {
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+}
+
+/* ── Artifacts ───────────────────────────────────────── */
+
 .artifact-card {
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px dashed rgba(97, 175, 239, 0.3);
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
@@ -512,39 +375,23 @@ footer,
   justify-content: space-between;
 }
 
-/* Animations */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
+/* ── Responsive safeguards ───────────────────────────── */
+
+@media (max-width: 768px) {
+  .chat-center-wrapper {
+    padding: 0.5rem 0.75rem 0.75rem !important;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  .voice-row,
+  .toolbar-row {
+    flex-wrap: wrap !important;
   }
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  #chatbot .message-row .user,
-  #chatbot .message-row .bot {
-    max-width: 90% !important;
-  }
-
-  #input-container {
-    margin: 0.5rem !important;
-  }
-
-  .toolbar-row {
-    padding: 0.25rem 0.75rem !important;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .voice-audio {
-    left: 0.75rem !important;
-    width: calc(100vw - 1.5rem) !important;
-    min-width: 0 !important;
-    max-width: 380px !important;
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

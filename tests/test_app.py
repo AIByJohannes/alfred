@@ -234,3 +234,144 @@ def test_workspaces_filter_and_remember_session_membership(tmp_path, monkeypatch
 
     assert [session["id"] for session in get_sessions(workspace_id)] == ["session-a"]
     assert get_sessions("general") == []
+
+
+# ===================== CHAT-FIRST LAYOUT CONTRACTS =====================
+
+
+def _write_session(root: Path, name: str, prompt: str) -> Path:
+    session_dir = root / "sessions" / name
+    session_dir.mkdir(parents=True)
+    (session_dir / "request.json").write_text(json.dumps({"prompt": prompt}))
+    return session_dir
+
+
+def test_idle_run_state_shows_no_status_banner():
+    from app.app import _render_status
+
+    assert _render_status("idle", "Standing by.") == ""
+    assert "status-running" in _render_status("running", "Working")
+    assert "status-done" in _render_status("done", "Done")
+    assert "status-error" in _render_status("error", "Boom")
+
+
+def test_status_detail_is_html_escaped():
+    from app.app import _render_status
+
+    out = _render_status("error", "<script>alert(1)</script>")
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out
+
+
+def test_artifact_and_pending_labels_are_html_escaped():
+    from app.app import _render_artifacts, _render_pending
+
+    artifacts = _render_artifacts([{"label": "<img src=x>", "path": "/tmp/<b>.txt"}])
+    assert "<img" not in artifacts
+    assert "<b>" not in artifacts
+
+    pending = _render_pending("<iframe></iframe>")
+    assert "<iframe>" not in pending
+
+
+def test_new_chat_clears_view_state_but_keeps_persisted_sessions(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _clear_state, get_sessions
+
+    _write_session(tmp_path, "20261019T120000Z-aaa", "Keep me")
+
+    messages, session_id, artifacts, status, detail, *_rest = _clear_state("Session ready.")
+    chatbot = _rest[-1]
+
+    assert messages == []
+    assert session_id is None
+    assert artifacts == []
+    assert status == "idle"
+    assert detail == "Session ready."
+    assert chatbot == []
+    assert [s["id"] for s in get_sessions()] == ["20261019T120000Z-aaa"]
+
+
+def test_fork_detaches_from_session_without_dropping_transcript():
+    from app.app import _fork_session
+
+    transcript = [{"role": "user", "content": "Hello"}]
+    messages, session_id, *_rest = _fork_session(transcript, [], "general")
+
+    assert messages == transcript
+    assert session_id is None
+
+
+def test_transcription_failure_preserves_existing_draft():
+    import asyncio
+
+    from app.app import _transcribe_and_fill
+
+    draft = {"text": "keep this draft", "files": []}
+    text, status, _detail = asyncio.run(_transcribe_and_fill("/nonexistent/audio.webm", draft))
+
+    assert text == "keep this draft"
+    assert status == "idle"
+
+
+def test_loading_history_restores_assistant_reply(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _load_session_into_state
+
+    session_dir = _write_session(tmp_path, "20261019T120000Z-bbb", "Hello")
+    (session_dir / "messages.ndjson").write_text(
+        json.dumps({"role": "user", "content": "Hello"}) + "\n"
+    )
+    (session_dir / "events.ndjson").write_text(
+        "\n".join(
+            [
+                json.dumps({"type": "delta", "text": "Hi "}),
+                json.dumps({"type": "delta", "text": "there"}),
+                json.dumps({"type": "done", "result": "completed"}),
+            ]
+        )
+        + "\n"
+    )
+
+    messages, *_rest = _load_session_into_state("20261019T120000Z-bbb", "general")
+
+    assert [m["role"] for m in messages] == ["user", "assistant"]
+    assert messages[1]["content"] == "Hi there"
+    assert messages[1]["status"] == "done"
+
+
+def test_loading_history_marks_failed_runs(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALFRED_RUNTIME_ROOT", str(tmp_path))
+    from app.app import _load_session_into_state
+
+    session_dir = _write_session(tmp_path, "20261019T120000Z-ccc", "Hello")
+    (session_dir / "messages.ndjson").write_text(
+        json.dumps({"role": "user", "content": "Hello"}) + "\n"
+    )
+    (session_dir / "events.ndjson").write_text(
+        "\n".join(
+            [
+                json.dumps({"type": "delta", "text": "partial"}),
+                json.dumps({"type": "error", "message": "boom"}),
+            ]
+        )
+        + "\n"
+    )
+
+    messages, *_rest = _load_session_into_state("20261019T120000Z-ccc", "general")
+
+    assert messages[-1]["role"] == "assistant"
+    assert messages[-1]["status"] == "error"
+
+
+def test_voice_controls_are_in_normal_flow():
+    css = Path("app/style.css").read_text(encoding="utf-8")
+    # The floating popover that covered the transcript must not come back.
+    assert ".voice-audio" not in css
+    assert ".voice-accordion" in css
+
+
+def test_style_has_no_external_font_requests():
+    css = Path("app/style.css").read_text(encoding="utf-8")
+    assert "fonts.googleapis.com" not in css
+    assert "@import" not in css
